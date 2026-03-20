@@ -15,11 +15,8 @@ export const parseDateLocal = parseLocalDate
  * Formats a date string (YYYY-MM-DD) to a simple localized string
  */
 export function formatDateLocal(dateString: string): string {
-  const date = parseLocalDate(dateString)
-  return date.toLocaleDateString("es-ES", {
-    day: "numeric",
-    month: "short",
-  })
+  const [year, month, day] = dateString.split("-")
+  return `${day}/${month}/${year}`
 }
 
 /**
