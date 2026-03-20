@@ -4,15 +4,28 @@ import { useState, useEffect, useRef, useCallback } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { createClient } from "@/lib/supabase/client"
 import {
-  ArrowLeft, BookOpen, Save,
+  ArrowLeft, Plus, Save, Search, StickyNote,
   Bold, Italic, Underline, Strikethrough,
   Heading1, Heading2, List, ListOrdered,
-  Link, AlignLeft, AlignCenter, AlignRight,
-  Eraser, Upload, FileText, Download, Trash2,
-  StickyNote, Paperclip,
+  Link, AlignLeft, AlignCenter, AlignRight, Eraser,
+  Calendar, BookOpen, Trash2, Clock,
 } from "lucide-react"
+
+// ── Types ──────────────────────────────────────────────
+interface Note {
+  id: string
+  subjectId: string
+  subjectName: string
+  subjectColor: string
+  title: string
+  date: string        // YYYY-MM-DD
+  content: string     // HTML
+  createdAt: string
+  updatedAt: string
+}
 
 interface Subject {
   id: string
@@ -20,101 +33,155 @@ interface Subject {
   color: string
 }
 
-interface StudyFile {
-  id: string
-  name: string
-  size: number
-  type: string
-  uploadDate: string
-  data: string // base64
+// ── Helpers ────────────────────────────────────────────
+function stripHtml(html: string) {
+  return html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim()
 }
 
-function formatSize(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+function formatDate(dateStr: string) {
+  const d = new Date(dateStr + "T12:00:00")
+  return d.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric" })
 }
 
+function groupLabel(dateStr: string) {
+  const d = new Date(dateStr + "T12:00:00")
+  const today = new Date(); today.setHours(0,0,0,0)
+  const diff = Math.floor((today.getTime() - d.getTime()) / 86400000)
+  if (diff === 0) return "Hoy"
+  if (diff === 1) return "Ayer"
+  if (diff <= 7) return "Esta semana"
+  if (diff <= 30) return "Este mes"
+  return d.toLocaleDateString("es-AR", { month: "long", year: "numeric" })
+}
+
+function groupOrder(label: string) {
+  const order: Record<string, number> = { "Hoy": 0, "Ayer": 1, "Esta semana": 2, "Este mes": 3 }
+  return order[label] ?? 99
+}
+
+// ── Main component ─────────────────────────────────────
 export function SubjectNotes() {
   const [subjects, setSubjects] = useState<Subject[]>([])
+  const [notes, setNotes] = useState<Note[]>([])
   const [loading, setLoading] = useState(true)
-  const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null)
-  const [activeTab, setActiveTab] = useState<"notes" | "files">("notes")
-  const [saved, setSaved] = useState(true)
   const [userId, setUserId] = useState<string | null>(null)
-  const [activeFormats, setActiveFormats] = useState<Set<string>>(new Set())
-  const [files, setFiles] = useState<StudyFile[]>([])
+
+  // List view filters
+  const [search, setSearch] = useState("")
+  const [filterSubject, setFilterSubject] = useState("all")
+  const [groupBy, setGroupBy] = useState<"subject" | "date">("date")
+
+  // Editor state
+  const [editing, setEditing] = useState<Note | null>(null)
+  const [isNew, setIsNew] = useState(false)
+  const [saved, setSaved] = useState(true)
   const [linkUrl, setLinkUrl] = useState("")
-  const [showLinkInput, setShowLinkInput] = useState(false)
+  const [showLink, setShowLink] = useState(false)
+  const [activeFormats, setActiveFormats] = useState<Set<string>>(new Set())
   const editorRef = useRef<HTMLDivElement>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+
   const supabase = createClient()
+  const storageKey = (uid: string) => `organize_notes_v2_${uid}`
 
-  useEffect(() => { loadSubjects() }, [])
+  // ── Load ──────────────────────────────────────────────
+  useEffect(() => { init() }, [])
 
-  const loadSubjects = async () => {
+  const init = async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
     setUserId(user.id)
-    const { data } = await supabase.from("subjects").select("*").eq("user_id", user.id).order("name")
-    if (data) setSubjects(data)
+
+    const { data: subs } = await supabase
+      .from("subjects").select("*").eq("user_id", user.id).order("name")
+    if (subs) setSubjects(subs)
+
+    const raw = localStorage.getItem(storageKey(user.id))
+    setNotes(raw ? JSON.parse(raw) : [])
     setLoading(false)
   }
 
-  const noteKey = (subject: Subject) => `notes_html_${userId}_${subject.id}`
-  const filesKey = (subject: Subject) => `files_${userId}_${subject.id}`
-
-  const openSubject = (subject: Subject) => {
-    setSelectedSubject(subject)
-    setActiveTab("notes")
-    setSaved(true)
-
-    // Load files
-    const savedFiles = localStorage.getItem(filesKey(subject))
-    setFiles(savedFiles ? JSON.parse(savedFiles) : [])
-
-    // Load note HTML — done after render via effect
+  const persist = (updated: Note[], uid: string) => {
+    localStorage.setItem(storageKey(uid), JSON.stringify(updated))
+    setNotes(updated)
   }
 
-  // Initialize editor content when subject changes
+  // ── Editor init ───────────────────────────────────────
   useEffect(() => {
-    if (!selectedSubject || !editorRef.current) return
-    const html = localStorage.getItem(noteKey(selectedSubject)) || ""
-    editorRef.current.innerHTML = html
+    if (!editing || !editorRef.current) return
+    editorRef.current.innerHTML = editing.content || ""
     editorRef.current.focus()
-  }, [selectedSubject])
+  }, [editing?.id])
 
+  // ── Save ──────────────────────────────────────────────
   const saveNote = useCallback(() => {
-    if (!selectedSubject || !userId || !editorRef.current) return
-    localStorage.setItem(noteKey(selectedSubject), editorRef.current.innerHTML)
+    if (!editing || !userId || !editorRef.current) return
+    const content = editorRef.current.innerHTML
+    const updated = notes.map(n =>
+      n.id === editing.id
+        ? { ...n, title: editing.title, date: editing.date,
+            subjectId: editing.subjectId, subjectName: editing.subjectName,
+            subjectColor: editing.subjectColor, content, updatedAt: new Date().toISOString() }
+        : n
+    )
+    // If new note not yet in array, add it
+    if (!notes.find(n => n.id === editing.id)) {
+      updated.push({ ...editing, content, updatedAt: new Date().toISOString() })
+    }
+    persist(updated.sort((a,b) => b.date.localeCompare(a.date)), userId)
     setSaved(true)
-  }, [selectedSubject, userId])
+  }, [editing, userId, notes])
 
-  const handleInput = () => {
+  useEffect(() => {
+    if (saved || !editing) return
+    const t = setTimeout(() => saveNote(), 2000)
+    return () => clearTimeout(t)
+  }, [saved, editing, saveNote])
+
+  // ── New note ──────────────────────────────────────────
+  const createNote = () => {
+    const defaultSubject = subjects[0]
+    const note: Note = {
+      id: Date.now().toString(),
+      subjectId: defaultSubject?.id || "",
+      subjectName: defaultSubject?.name || "",
+      subjectColor: defaultSubject?.color || "#6366f1",
+      title: "",
+      date: new Date().toISOString().split("T")[0],
+      content: "",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+    setEditing(note)
+    setIsNew(true)
     setSaved(false)
   }
 
-  // Autosave after 2s of inactivity
-  useEffect(() => {
-    if (saved || !selectedSubject) return
-    const t = setTimeout(() => saveNote(), 2000)
-    return () => clearTimeout(t)
-  }, [saved, selectedSubject, saveNote])
-
-  // Update active formats on selection change
-  const updateFormats = () => {
-    const formats = new Set<string>()
-    try {
-      if (document.queryCommandState("bold")) formats.add("bold")
-      if (document.queryCommandState("italic")) formats.add("italic")
-      if (document.queryCommandState("underline")) formats.add("underline")
-      if (document.queryCommandState("strikeThrough")) formats.add("strikeThrough")
-    } catch {}
-    setActiveFormats(formats)
+  const deleteNote = (id: string) => {
+    if (!userId) return
+    persist(notes.filter(n => n.id !== id), userId)
   }
 
-  const exec = (command: string, value?: string) => {
-    document.execCommand(command, false, value)
+  const changeSubject = (subjectId: string) => {
+    const sub = subjects.find(s => s.id === subjectId)
+    if (!sub || !editing) return
+    setEditing({ ...editing, subjectId: sub.id, subjectName: sub.name, subjectColor: sub.color })
+    setSaved(false)
+  }
+
+  // ── Rich text ─────────────────────────────────────────
+  const updateFormats = () => {
+    const f = new Set<string>()
+    try {
+      if (document.queryCommandState("bold")) f.add("bold")
+      if (document.queryCommandState("italic")) f.add("italic")
+      if (document.queryCommandState("underline")) f.add("underline")
+      if (document.queryCommandState("strikeThrough")) f.add("strikeThrough")
+    } catch {}
+    setActiveFormats(f)
+  }
+
+  const exec = (cmd: string, val?: string) => {
+    document.execCommand(cmd, false, val)
     editorRef.current?.focus()
     updateFormats()
     setSaved(false)
@@ -123,352 +190,327 @@ export function SubjectNotes() {
   const insertLink = () => {
     if (!linkUrl) return
     exec("createLink", linkUrl.startsWith("http") ? linkUrl : `https://${linkUrl}`)
-    setLinkUrl("")
-    setShowLinkInput(false)
+    setLinkUrl(""); setShowLink(false)
   }
 
-  // File upload
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!selectedSubject || !userId) return
-    const file = e.target.files?.[0]
-    if (!file) return
-    if (file.size > 10 * 1024 * 1024) {
-      alert("El archivo es demasiado grande. Máximo 10 MB.")
-      return
-    }
-    const reader = new FileReader()
-    reader.onload = (ev) => {
-      const newFile: StudyFile = {
-        id: Date.now().toString(),
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        uploadDate: new Date().toISOString(),
-        data: ev.target?.result as string,
-      }
-      const updated = [...files, newFile]
-      setFiles(updated)
-      localStorage.setItem(filesKey(selectedSubject), JSON.stringify(updated))
-    }
-    reader.readAsDataURL(file)
-    e.target.value = ""
-  }
+  // ── Filtered & grouped notes ──────────────────────────
+  const filtered = notes.filter(n => {
+    const matchSearch = search === "" ||
+      n.title.toLowerCase().includes(search.toLowerCase()) ||
+      n.subjectName.toLowerCase().includes(search.toLowerCase()) ||
+      stripHtml(n.content).toLowerCase().includes(search.toLowerCase())
+    const matchSubject = filterSubject === "all" || n.subjectId === filterSubject
+    return matchSearch && matchSubject
+  })
 
-  const deleteFile = (id: string) => {
-    if (!selectedSubject) return
-    const updated = files.filter((f) => f.id !== id)
-    setFiles(updated)
-    localStorage.setItem(filesKey(selectedSubject), JSON.stringify(updated))
-  }
+  const grouped: Record<string, Note[]> = {}
+  filtered.forEach(n => {
+    const key = groupBy === "subject" ? n.subjectName : groupLabel(n.date)
+    if (!grouped[key]) grouped[key] = []
+    grouped[key].push(n)
+  })
 
-  const downloadFile = (file: StudyFile) => {
-    const a = document.createElement("a")
-    a.href = file.data
-    a.download = file.name
-    a.click()
-  }
+  const sortedGroups = Object.entries(grouped).sort(([a], [b]) =>
+    groupBy === "date" ? groupOrder(a) - groupOrder(b) : a.localeCompare(b)
+  )
 
-  // ── Loading ──
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-16">
-        <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-      </div>
-    )
-  }
+  // ── Loading ───────────────────────────────────────────
+  if (loading) return (
+    <div className="flex items-center justify-center py-16">
+      <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+    </div>
+  )
 
-  // ── Note editor ──
-  if (selectedSubject) {
-    return (
-      <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" className="gap-2"
-              onClick={() => { saveNote(); setSelectedSubject(null) }}>
-              <ArrowLeft className="h-4 w-4" />
-              Materias
+  // ── Editor view ───────────────────────────────────────
+  if (editing) return (
+    <div className="max-w-4xl mx-auto">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4">
+        <Button variant="ghost" size="sm" className="gap-2"
+          onClick={() => { saveNote(); setEditing(null); setIsNew(false) }}>
+          <ArrowLeft className="h-4 w-4" />
+          Apuntes
+        </Button>
+        <div className="flex items-center gap-2">
+          {!isNew && (
+            <Button variant="ghost" size="sm"
+              className="text-muted-foreground hover:text-destructive gap-2"
+              onClick={() => { deleteNote(editing.id); setEditing(null) }}>
+              <Trash2 className="h-4 w-4" />
+              Eliminar
             </Button>
-            <div className="h-4 w-px bg-border" />
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: selectedSubject.color }} />
-              <span className="font-semibold">{selectedSubject.name}</span>
-            </div>
-          </div>
-          <Button size="sm" variant={saved ? "outline" : "default"} className="gap-2" onClick={saveNote}>
+          )}
+          <Button size="sm" variant={saved ? "outline" : "default"} className="gap-2"
+            onClick={saveNote}>
             <Save className="h-3.5 w-3.5" />
             {saved ? "Guardado" : "Guardar"}
           </Button>
         </div>
+      </div>
 
-        {/* Tabs */}
-        <div className="flex gap-1 mb-4">
-          <button
-            onClick={() => setActiveTab("notes")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-              activeTab === "notes" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-secondary"
-            }`}
-          >
-            <StickyNote className="h-4 w-4" />
-            Apuntes
-          </button>
-          <button
-            onClick={() => setActiveTab("files")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-              activeTab === "files" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-secondary"
-            }`}
-          >
-            <Paperclip className="h-4 w-4" />
-            Material
-            {files.length > 0 && (
-              <span className="text-xs bg-primary-foreground/20 rounded-full px-1.5">{files.length}</span>
-            )}
-          </button>
-        </div>
-
-        {/* ── NOTES TAB ── */}
-        {activeTab === "notes" && (
-          <Card className="border-border/50 shadow-sm">
-            <CardContent className="p-0">
-              {/* Subject header on note */}
-              <div className="px-6 pt-6 pb-3 border-b border-border/50"
-                style={{ borderLeft: `4px solid ${selectedSubject.color}` }}>
-                <h2 className="text-xl font-bold">{selectedSubject.name}</h2>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {new Date().toLocaleDateString("es-AR", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
-                </p>
+      <Card className="border-border/50 shadow-sm">
+        <CardContent className="p-0">
+          {/* Meta row: title, subject, date */}
+          <div className="px-6 pt-5 pb-4 border-b border-border/50 space-y-3"
+            style={{ borderLeft: `4px solid ${editing.subjectColor}` }}>
+            <Input
+              value={editing.title}
+              onChange={e => { setEditing({ ...editing, title: e.target.value }); setSaved(false) }}
+              placeholder="Título del apunte..."
+              className="border-0 border-b border-border/50 rounded-none px-0 text-xl font-bold focus-visible:ring-0 bg-transparent"
+            />
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                <BookOpen className="h-3.5 w-3.5" />
+                <Select value={editing.subjectId} onValueChange={changeSubject}>
+                  <SelectTrigger className="h-7 border-0 bg-transparent px-0 text-sm focus:ring-0 w-auto gap-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {subjects.map(s => (
+                      <SelectItem key={s.id} value={s.id}>
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: s.color }} />
+                          {s.name}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-
-              {/* Toolbar */}
-              <div className="flex flex-wrap items-center gap-0.5 px-4 py-2 border-b border-border/50 bg-secondary/30">
-                {/* Headings */}
-                <ToolbarBtn icon={Heading1} title="Título 1" onClick={() => exec("formatBlock", "h1")} />
-                <ToolbarBtn icon={Heading2} title="Título 2" onClick={() => exec("formatBlock", "h2")} />
-                <Divider />
-
-                {/* Inline formats */}
-                <ToolbarBtn icon={Bold} title="Negrita (Ctrl+B)" active={activeFormats.has("bold")} onClick={() => exec("bold")} />
-                <ToolbarBtn icon={Italic} title="Itálica (Ctrl+I)" active={activeFormats.has("italic")} onClick={() => exec("italic")} />
-                <ToolbarBtn icon={Underline} title="Subrayado (Ctrl+U)" active={activeFormats.has("underline")} onClick={() => exec("underline")} />
-                <ToolbarBtn icon={Strikethrough} title="Tachado" active={activeFormats.has("strikeThrough")} onClick={() => exec("strikeThrough")} />
-                <Divider />
-
-                {/* Lists */}
-                <ToolbarBtn icon={List} title="Lista con viñetas" onClick={() => exec("insertUnorderedList")} />
-                <ToolbarBtn icon={ListOrdered} title="Lista numerada" onClick={() => exec("insertOrderedList")} />
-                <Divider />
-
-                {/* Alignment */}
-                <ToolbarBtn icon={AlignLeft} title="Alinear izquierda" onClick={() => exec("justifyLeft")} />
-                <ToolbarBtn icon={AlignCenter} title="Centrar" onClick={() => exec("justifyCenter")} />
-                <ToolbarBtn icon={AlignRight} title="Alinear derecha" onClick={() => exec("justifyRight")} />
-                <Divider />
-
-                {/* Link */}
-                <ToolbarBtn icon={Link} title="Insertar enlace" onClick={() => setShowLinkInput(!showLinkInput)} />
-                <Divider />
-
-                {/* Clear */}
-                <ToolbarBtn icon={Eraser} title="Limpiar formato" onClick={() => exec("removeFormat")} />
-              </div>
-
-              {/* Link input */}
-              {showLinkInput && (
-                <div className="flex items-center gap-2 px-4 py-2 border-b border-border/50 bg-secondary/20">
-                  <Input
-                    placeholder="https://..."
-                    value={linkUrl}
-                    onChange={(e) => setLinkUrl(e.target.value)}
-                    className="h-8 text-sm"
-                    onKeyDown={(e) => e.key === "Enter" && insertLink()}
-                    autoFocus
-                  />
-                  <Button size="sm" className="h-8" onClick={insertLink}>Insertar</Button>
-                  <Button size="sm" variant="ghost" className="h-8" onClick={() => setShowLinkInput(false)}>Cancelar</Button>
-                </div>
-              )}
-
-              {/* Editor */}
-              <div
-                ref={editorRef}
-                contentEditable
-                suppressContentEditableWarning
-                onInput={handleInput}
-                onKeyUp={updateFormats}
-                onMouseUp={updateFormats}
-                className={`
-                  min-h-[500px] px-8 py-6 focus:outline-none text-sm leading-relaxed text-foreground
-                  [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:mb-3 [&_h1]:mt-4
-                  [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:mb-2 [&_h2]:mt-3
-                  [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:my-2
-                  [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:my-2
-                  [&_li]:my-1
-                  [&_a]:text-primary [&_a]:underline [&_a]:cursor-pointer
-                  [&_b]:font-bold [&_strong]:font-bold
-                  [&_i]:italic [&_em]:italic
-                  [&_u]:underline
-                  [&_s]:line-through
-                  empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/40
-                `}
-                data-placeholder="Empezá a escribir tus apuntes aquí..."
-              />
-            </CardContent>
-          </Card>
-        )}
-
-        {/* ── FILES TAB ── */}
-        {activeTab === "files" && (
-          <Card className="border-border/50 shadow-sm">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h3 className="font-semibold text-foreground">Material de estudio</h3>
-                  <p className="text-xs text-muted-foreground mt-0.5">PDFs, apuntes, imágenes — máx. 10 MB por archivo</p>
-                </div>
-                <Button size="sm" className="gap-2" onClick={() => fileInputRef.current?.click()}>
-                  <Upload className="h-4 w-4" />
-                  Subir archivo
-                </Button>
+              <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                <Calendar className="h-3.5 w-3.5" />
                 <input
-                  ref={fileInputRef}
-                  type="file"
-                  className="hidden"
-                  accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.txt,.pptx,.xlsx"
-                  onChange={handleFileUpload}
+                  type="date"
+                  value={editing.date}
+                  onChange={e => { setEditing({ ...editing, date: e.target.value }); setSaved(false) }}
+                  className="bg-transparent border-0 text-sm text-muted-foreground focus:outline-none cursor-pointer"
                 />
               </div>
+            </div>
+          </div>
 
-              {files.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-16 text-center">
-                  <Paperclip className="h-12 w-12 text-muted-foreground/20 mb-4" />
-                  <p className="text-muted-foreground">No hay archivos cargados.</p>
-                  <p className="text-sm text-muted-foreground/60 mt-1">Subí PDFs, imágenes o documentos de estudio.</p>
-                  <Button variant="outline" size="sm" className="mt-4 gap-2"
-                    onClick={() => fileInputRef.current?.click()}>
-                    <Upload className="h-4 w-4" />
-                    Subir primer archivo
-                  </Button>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {files.map((file) => (
-                    <div key={file.id}
-                      className="flex items-center justify-between p-3 rounded-lg border border-border/50 bg-secondary/30 hover:bg-secondary/50 transition-colors group">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="p-2 rounded-lg bg-primary/10 shrink-0">
-                          <FileText className="h-4 w-4 text-primary" />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-foreground truncate">{file.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {formatSize(file.size)} · {new Date(file.uploadDate).toLocaleDateString("es-AR")}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => downloadFile(file)}
-                          title="Descargar">
-                          <Download className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon"
-                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                          onClick={() => deleteFile(file.id)} title="Eliminar">
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
-      </div>
-    )
-  }
+          {/* Toolbar */}
+          <div className="flex flex-wrap items-center gap-0.5 px-4 py-2 border-b border-border/50 bg-secondary/30">
+            <TB icon={Heading1} title="Título 1" onClick={() => exec("formatBlock","h1")} />
+            <TB icon={Heading2} title="Título 2" onClick={() => exec("formatBlock","h2")} />
+            <Sep />
+            <TB icon={Bold} title="Negrita (Ctrl+B)" active={activeFormats.has("bold")} onClick={() => exec("bold")} />
+            <TB icon={Italic} title="Itálica (Ctrl+I)" active={activeFormats.has("italic")} onClick={() => exec("italic")} />
+            <TB icon={Underline} title="Subrayado (Ctrl+U)" active={activeFormats.has("underline")} onClick={() => exec("underline")} />
+            <TB icon={Strikethrough} title="Tachado" active={activeFormats.has("strikeThrough")} onClick={() => exec("strikeThrough")} />
+            <Sep />
+            <TB icon={List} title="Lista con viñetas" onClick={() => exec("insertUnorderedList")} />
+            <TB icon={ListOrdered} title="Lista numerada" onClick={() => exec("insertOrderedList")} />
+            <Sep />
+            <TB icon={AlignLeft} title="Izquierda" onClick={() => exec("justifyLeft")} />
+            <TB icon={AlignCenter} title="Centro" onClick={() => exec("justifyCenter")} />
+            <TB icon={AlignRight} title="Derecha" onClick={() => exec("justifyRight")} />
+            <Sep />
+            <TB icon={Link} title="Insertar enlace" onClick={() => setShowLink(!showLink)} />
+            <TB icon={Eraser} title="Limpiar formato" onClick={() => exec("removeFormat")} />
+          </div>
 
-  // ── Subject list ──
+          {showLink && (
+            <div className="flex items-center gap-2 px-4 py-2 border-b border-border/50 bg-secondary/20">
+              <Input placeholder="https://..." value={linkUrl}
+                onChange={e => setLinkUrl(e.target.value)}
+                className="h-8 text-sm" autoFocus
+                onKeyDown={e => e.key === "Enter" && insertLink()} />
+              <Button size="sm" className="h-8" onClick={insertLink}>Insertar</Button>
+              <Button size="sm" variant="ghost" className="h-8" onClick={() => setShowLink(false)}>×</Button>
+            </div>
+          )}
+
+          {/* Editor */}
+          <div
+            ref={editorRef}
+            contentEditable
+            suppressContentEditableWarning
+            onInput={() => { setSaved(false) }}
+            onKeyUp={updateFormats}
+            onMouseUp={updateFormats}
+            className="min-h-[500px] px-8 py-6 focus:outline-none text-sm leading-relaxed text-foreground
+              [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:mb-3 [&_h1]:mt-4
+              [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:mb-2 [&_h2]:mt-3
+              [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:my-2
+              [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:my-2
+              [&_li]:my-1 [&_a]:text-primary [&_a]:underline
+              [&_b]:font-bold [&_strong]:font-bold
+              [&_i]:italic [&_em]:italic [&_u]:underline [&_s]:line-through"
+            data-placeholder="Empezá a escribir..."
+          />
+        </CardContent>
+      </Card>
+    </div>
+  )
+
+  // ── List view ─────────────────────────────────────────
   return (
     <div className="max-w-4xl mx-auto">
-      <div className="mb-6">
-        <h2 className="text-lg font-semibold">Apuntes por Materia</h2>
-        <p className="text-sm text-muted-foreground mt-1">Seleccioná una materia para ver o tomar apuntes</p>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-lg font-semibold">Mis Apuntes</h2>
+          <p className="text-sm text-muted-foreground mt-0.5">{notes.length} apunte{notes.length !== 1 ? "s" : ""} guardado{notes.length !== 1 ? "s" : ""}</p>
+        </div>
+        <Button className="gap-2" onClick={createNote} disabled={subjects.length === 0}>
+          <Plus className="h-4 w-4" />
+          Nuevo apunte
+        </Button>
       </div>
 
-      {subjects.length === 0 ? (
+      {/* Filters */}
+      <div className="flex flex-wrap gap-3 mb-6">
+        <div className="relative flex-1 min-w-48">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input placeholder="Buscar apuntes..." value={search}
+            onChange={e => setSearch(e.target.value)} className="pl-9" />
+        </div>
+        <Select value={filterSubject} onValueChange={setFilterSubject}>
+          <SelectTrigger className="w-48">
+            <SelectValue placeholder="Todas las materias" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas las materias</SelectItem>
+            {subjects.map(s => (
+              <SelectItem key={s.id} value={s.id}>
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: s.color }} />
+                  {s.name}
+                </div>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {/* Group by toggle */}
+        <div className="flex rounded-lg border border-border overflow-hidden">
+          <button
+            onClick={() => setGroupBy("date")}
+            className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors ${
+              groupBy === "date" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-secondary"
+            }`}
+          >
+            <Clock className="h-3.5 w-3.5" />
+            Por fecha
+          </button>
+          <button
+            onClick={() => setGroupBy("subject")}
+            className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors ${
+              groupBy === "subject" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-secondary"
+            }`}
+          >
+            <BookOpen className="h-3.5 w-3.5" />
+            Por materia
+          </button>
+        </div>
+      </div>
+
+      {/* Empty state */}
+      {notes.length === 0 ? (
         <Card className="border-border/50 shadow-sm">
-          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-            <BookOpen className="h-12 w-12 text-muted-foreground/30 mb-4" />
-            <p className="text-muted-foreground">No hay materias cargadas.</p>
+          <CardContent className="flex flex-col items-center justify-center py-20 text-center">
+            <StickyNote className="h-12 w-12 text-muted-foreground/20 mb-4" />
+            <p className="font-medium text-muted-foreground">No hay apuntes todavía.</p>
+            <p className="text-sm text-muted-foreground/60 mt-1">Creá tu primer apunte con el botón de arriba.</p>
+            <Button className="mt-6 gap-2" onClick={createNote} disabled={subjects.length === 0}>
+              <Plus className="h-4 w-4" />
+              Crear apunte
+            </Button>
+            {subjects.length === 0 && (
+              <p className="text-xs text-muted-foreground/50 mt-2">Primero agregá materias desde Gestionar Materias.</p>
+            )}
           </CardContent>
         </Card>
+      ) : filtered.length === 0 ? (
+        <p className="text-center text-muted-foreground py-12">No se encontraron apuntes.</p>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {subjects.map((subject) => {
-            const hasNote = userId
-              ? (localStorage.getItem(`notes_html_${userId}_${subject.id}`) || "").replace(/<[^>]*>/g, "").trim().length > 0
-              : false
-            const fileCount = userId
-              ? JSON.parse(localStorage.getItem(`files_${userId}_${subject.id}`) || "[]").length
-              : 0
+        <div className="space-y-8">
+          {sortedGroups.map(([groupKey, groupNotes]) => (
+            <div key={groupKey}>
+              {/* Group header */}
+              <div className="flex items-center gap-3 mb-3">
+                {groupBy === "subject" ? (
+                  <>
+                    <div className="w-2.5 h-2.5 rounded-full"
+                      style={{ backgroundColor: groupNotes[0]?.subjectColor }} />
+                    <h3 className="text-sm font-semibold text-foreground">{groupKey}</h3>
+                  </>
+                ) : (
+                  <h3 className="text-sm font-semibold text-muted-foreground">{groupKey}</h3>
+                )}
+                <div className="flex-1 h-px bg-border/50" />
+                <span className="text-xs text-muted-foreground">{groupNotes.length}</span>
+              </div>
 
-            return (
-              <Card key={subject.id}
-                className="border-border/50 shadow-sm hover:shadow-md transition-all cursor-pointer group hover:border-border"
-                onClick={() => openSubject(subject)}
-                style={{ borderLeft: `4px solid ${subject.color}` }}>
-                <CardContent className="p-5">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors truncate">
-                        {subject.name}
-                      </h3>
-                      <div className="flex items-center gap-3 mt-1.5">
-                        <span className="text-xs text-muted-foreground flex items-center gap-1">
-                          <StickyNote className="h-3 w-3" />
-                          {hasNote ? "Con apuntes" : "Sin apuntes"}
-                        </span>
-                        {fileCount > 0 && (
-                          <span className="text-xs text-muted-foreground flex items-center gap-1">
-                            <Paperclip className="h-3 w-3" />
-                            {fileCount} archivo{fileCount > 1 ? "s" : ""}
+              {/* Notes grid */}
+              <div className="grid gap-3 sm:grid-cols-2">
+                {groupNotes.map(note => {
+                  const preview = stripHtml(note.content)
+                  return (
+                    <div key={note.id}
+                      className="group relative flex flex-col gap-2 p-4 rounded-lg border border-border/50 bg-card hover:border-border hover:shadow-sm transition-all cursor-pointer"
+                      style={{ borderLeft: `3px solid ${note.subjectColor}` }}
+                      onClick={() => { setEditing(note); setIsNew(false); setSaved(true) }}
+                    >
+                      {/* Delete btn */}
+                      <button
+                        className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 p-1 rounded text-muted-foreground hover:text-destructive transition-all"
+                        onClick={e => { e.stopPropagation(); deleteNote(note.id) }}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+
+                      <div className="flex items-start justify-between gap-2 pr-6">
+                        <h4 className="text-sm font-semibold text-foreground truncate">
+                          {note.title || "Sin título"}
+                        </h4>
+                      </div>
+
+                      <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+                        {preview || "Apunte vacío"}
+                      </p>
+
+                      <div className="flex items-center gap-3 mt-1">
+                        {groupBy === "date" && (
+                          <span className="flex items-center gap-1 text-xs text-muted-foreground/70">
+                            <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: note.subjectColor }} />
+                            {note.subjectName}
+                          </span>
+                        )}
+                        {groupBy === "subject" && (
+                          <span className="flex items-center gap-1 text-xs text-muted-foreground/70">
+                            <Calendar className="h-3 w-3" />
+                            {formatDate(note.date)}
                           </span>
                         )}
                       </div>
                     </div>
-                    <BookOpen className="h-5 w-5 text-muted-foreground/40 group-hover:text-primary/60 transition-colors shrink-0 ml-2" />
-                  </div>
-                  <div className="mt-4 h-1.5 rounded-full opacity-30 group-hover:opacity-50 transition-opacity"
-                    style={{ backgroundColor: subject.color }} />
-                </CardContent>
-              </Card>
-            )
-          })}
+                  )
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>
   )
 }
 
-// ── Toolbar helpers ──
-function ToolbarBtn({
-  icon: Icon, title, onClick, active = false,
-}: { icon: React.ElementType; title: string; onClick: () => void; active?: boolean }) {
+// ── Toolbar helpers ────────────────────────────────────
+function TB({ icon: Icon, title, onClick, active = false }:
+  { icon: React.ElementType; title: string; onClick: () => void; active?: boolean }) {
   return (
-    <button
-      title={title}
-      onMouseDown={(e) => { e.preventDefault(); onClick() }}
-      className={`p-1.5 rounded transition-colors ${
-        active
-          ? "bg-primary text-primary-foreground"
-          : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-      }`}
-    >
+    <button title={title}
+      onMouseDown={e => { e.preventDefault(); onClick() }}
+      className={`p-1.5 rounded transition-colors ${active
+        ? "bg-primary text-primary-foreground"
+        : "text-muted-foreground hover:bg-secondary hover:text-foreground"}`}>
       <Icon className="h-4 w-4" />
     </button>
   )
 }
 
-function Divider() {
+function Sep() {
   return <div className="w-px h-5 bg-border mx-1" />
 }
