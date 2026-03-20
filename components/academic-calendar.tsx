@@ -489,29 +489,27 @@ export function AcademicCalendar() {
                                 className="h-8 text-sm" />
                             </div>
                           )}
-                          <div className="grid grid-cols-2 gap-3">
-                            <div className="grid gap-2">
-                              <label className="text-xs font-medium text-muted-foreground">Materia</label>
-                              <Select value={editEventDraft.subject}
-                                onValueChange={v => setEditEventDraft({ ...editEventDraft, subject: v, ...(editEventDraft.type === "exam" ? { title: v } : {}) })}>
-                                <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                  {subjects.map(s => (
-                                    <SelectItem key={s.id} value={s.name}>
-                                      <div className="flex items-center gap-2">
-                                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: s.color }} />{s.name}
-                                      </div>
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            <div className="grid gap-2">
-                              <label className="text-xs font-medium text-muted-foreground">Fecha</label>
-                              <DateInput value={editEventDraft.date}
-                                onChange={v => setEditEventDraft({ ...editEventDraft, date: v })}
-                                className="h-8 text-sm" />
-                            </div>
+                          <div className="grid gap-2">
+                            <label className="text-xs font-medium text-muted-foreground">Materia</label>
+                            <Select value={editEventDraft.subject}
+                              onValueChange={v => setEditEventDraft({ ...editEventDraft, subject: v, ...(editEventDraft.type === "exam" ? { title: v } : {}) })}>
+                              <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                {subjects.map(s => (
+                                  <SelectItem key={s.id} value={s.name}>
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: s.color }} />{s.name}
+                                    </div>
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="grid gap-2">
+                            <label className="text-xs font-medium text-muted-foreground">Fecha</label>
+                            <DateInput value={editEventDraft.date}
+                              onChange={v => setEditEventDraft({ ...editEventDraft, date: v })}
+                              className="h-8 text-sm" />
                           </div>
                           {editEventDraft.type === "task" && (
                             <div className="grid gap-2">
