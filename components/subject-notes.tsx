@@ -11,7 +11,7 @@ import {
   Bold, Italic, Underline, Strikethrough,
   Heading1, Heading2, List, ListOrdered,
   Link, AlignLeft, AlignCenter, AlignRight, Eraser,
-  Calendar, BookOpen, Trash2, Clock,
+  Calendar, BookOpen, Trash2, Clock, FileDown,
 } from "lucide-react"
 
 // ── Types ──────────────────────────────────────────────
@@ -214,6 +214,57 @@ export function SubjectNotes() {
     groupBy === "date" ? groupOrder(a) - groupOrder(b) : a.localeCompare(b)
   )
 
+  // ── Export PDF ────────────────────────────────────────
+  const exportToPdf = () => {
+    if (!editing || !editorRef.current) return
+    const content = editorRef.current.innerHTML
+    const title = editing.title || "Sin título"
+    const subject = editing.subjectName
+    const date = formatDate(editing.date)
+
+    const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>${title}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: Georgia, serif; font-size: 13px; line-height: 1.7; color: #111; padding: 48px 56px; max-width: 800px; margin: auto; }
+    .header { border-left: 4px solid ${editing.subjectColor}; padding-left: 16px; margin-bottom: 32px; }
+    .note-title { font-size: 24px; font-weight: 700; margin-bottom: 6px; }
+    .meta { font-size: 12px; color: #666; display: flex; gap: 16px; }
+    .divider { border: none; border-top: 1px solid #ddd; margin: 24px 0; }
+    h1 { font-size: 20px; font-weight: 700; margin: 20px 0 8px; }
+    h2 { font-size: 16px; font-weight: 600; margin: 16px 0 6px; }
+    p { margin: 8px 0; }
+    ul { padding-left: 24px; margin: 8px 0; }
+    ol { padding-left: 24px; margin: 8px 0; }
+    li { margin: 4px 0; }
+    a { color: #6366f1; }
+    b, strong { font-weight: 700; }
+    i, em { font-style: italic; }
+    u { text-decoration: underline; }
+    s { text-decoration: line-through; }
+    @media print { body { padding: 0; } }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="note-title">${title}</div>
+    <div class="meta"><span>${subject}</span><span>${date}</span></div>
+  </div>
+  <hr class="divider" />
+  <div class="content">${content}</div>
+  <script>window.onload = () => { window.print(); }<\/script>
+</body>
+</html>`
+
+    const win = window.open("", "_blank")
+    if (!win) return
+    win.document.write(html)
+    win.document.close()
+  }
+
   // ── Loading ───────────────────────────────────────────
   if (loading) return (
     <div className="flex items-center justify-center py-16">
@@ -240,6 +291,11 @@ export function SubjectNotes() {
               Eliminar
             </Button>
           )}
+          <Button size="sm" variant="outline" className="gap-2"
+            onClick={exportToPdf}>
+            <FileDown className="h-3.5 w-3.5" />
+            Exportar PDF
+          </Button>
           <Button size="sm" variant={saved ? "outline" : "default"} className="gap-2"
             onClick={saveNote}>
             <Save className="h-3.5 w-3.5" />
