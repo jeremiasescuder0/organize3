@@ -8,7 +8,7 @@ import { Progress } from "@/components/ui/progress"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { BookOpen, Plus, Calendar } from "lucide-react"
+import { BookOpen, Plus, Calendar, Trash2 } from "lucide-react"
 import { parseDateLocal, formatDateLocal } from "@/lib/date-utils"
 import { createClient } from "@/lib/supabase/client"
 
@@ -89,6 +89,13 @@ export function UpcomingExams() {
       ))
       setNewExam({ subject: "", date: "", topics: "" })
       setDialogOpen(false)
+    }
+  }
+
+  const deleteExam = async (id: string) => {
+    const { error } = await supabase.from("exams").delete().eq("id", id)
+    if (!error) {
+      setExams(exams.filter((e) => e.id !== id))
     }
   }
 
@@ -217,9 +224,19 @@ export function UpcomingExams() {
                       {formatDateLocal(exam.date)}
                     </p>
                   </div>
-                  <Badge variant="secondary" className={`text-xs ml-2 ${getUrgencyColor(daysUntil)}`}>
-                    {daysUntil === 0 ? "Hoy" : daysUntil === 1 ? "Manana" : `${daysUntil} dias`}
-                  </Badge>
+                  <div className="flex items-center gap-1 ml-2 shrink-0">
+                    <Badge variant="secondary" className={`text-xs ${getUrgencyColor(daysUntil)}`}>
+                      {daysUntil === 0 ? "Hoy" : daysUntil === 1 ? "Mañana" : `${daysUntil} días`}
+                    </Badge>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                      onClick={(e) => { e.stopPropagation(); deleteExam(exam.id) }}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                 </div>
                 {exam.topics && exam.topics.length > 0 && (
                   <div className="flex flex-wrap gap-1 mb-2">
