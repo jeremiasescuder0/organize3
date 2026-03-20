@@ -72,13 +72,13 @@ export function SubjectsManager() {
         .order("name"),
       supabase
         .from("default_subjects")
-        .select("id, name, year, elective")
-        .order("year", { ascending: true })
+        .select("*")
         .order("name", { ascending: true }),
     ])
 
     if (subjectsResult.data) setSubjects(subjectsResult.data)
     if (defaultResult.data) setDefaultSubjects(defaultResult.data)
+    console.log("[SubjectsManager] enrolled:", subjectsResult.data?.length, "default:", defaultResult.data?.length, "error:", defaultResult.error)
     setLoading(false)
   }
 
@@ -113,10 +113,11 @@ export function SubjectsManager() {
     setSaving(false)
   }
 
-  // Default subjects not yet enrolled
-  const enrolledNames = new Set(subjects.map((s) => s.name))
+  // Default subjects not yet enrolled (normalize to avoid accent/case mismatches)
+  const normalize = (s: string) => s.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+  const enrolledNames = new Set(subjects.map((s) => normalize(s.name)))
   const availableToAdd = defaultSubjects.filter(
-    (ds) => !enrolledNames.has(ds.name)
+    (ds) => !enrolledNames.has(normalize(ds.name))
   )
 
   // Group available by year
