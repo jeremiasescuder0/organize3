@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog"
 import { ChevronLeft, ChevronRight, Plus, BookOpen, CheckSquare, X } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
+import { DateInput } from "@/components/ui/date-input"
 
 interface CalendarEvent {
   id: string
@@ -505,10 +506,9 @@ export function AcademicCalendar() {
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label>Fecha</Label>
-                <Input
-                  type="date"
+                <DateInput
                   value={newEvent.date}
-                  onChange={(e) => setNewEvent({ ...newEvent, date: e.target.value })}
+                  onChange={(v) => setNewEvent({ ...newEvent, date: v })}
                 />
               </div>
               <div className="grid gap-2">

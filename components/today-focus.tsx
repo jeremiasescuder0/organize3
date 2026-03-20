@@ -8,8 +8,9 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Sparkles, Plus, ChevronDown, ChevronUp, Save, Trash2, Calendar } from "lucide-react"
+import { Sparkles, Plus, ChevronDown, ChevronUp, Save, Trash2 } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
+import { DateInput } from "@/components/ui/date-input"
 
 interface Task {
   id: string
@@ -259,12 +260,11 @@ export function TodayFocus() {
                   </div>
                   <div className="grid gap-2">
                     <label className="text-xs font-medium text-muted-foreground">Fecha límite</label>
-                    <div className="relative">
-                      <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                      <Input type="date" value={editDraft.due_date || ""}
-                        onChange={e => setEditDraft({ ...editDraft, due_date: e.target.value })}
-                        className="h-8 text-sm pl-8" />
-                    </div>
+                    <DateInput
+                      value={editDraft.due_date || ""}
+                      onChange={v => setEditDraft({ ...editDraft, due_date: v })}
+                      className="h-8 text-sm"
+                    />
                   </div>
                   <div className="flex items-center justify-between pt-1">
                     <Button variant="ghost" size="sm" className="gap-1.5 text-destructive hover:text-destructive h-8"

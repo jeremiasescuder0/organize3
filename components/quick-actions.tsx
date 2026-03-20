@@ -7,9 +7,10 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { Plus, BookOpen, Clock, FolderOpen, Zap, Calendar } from "lucide-react"
+import { Plus, BookOpen, Clock, FolderOpen, Zap } from "lucide-react"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
+import { DateInput } from "@/components/ui/date-input"
 
 interface Subject {
   id: string
@@ -200,15 +201,10 @@ export function QuickActions() {
               </div>
               <div className="grid gap-2">
                 <Label>Fecha límite</Label>
-                <div className="relative">
-                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    type="date"
-                    value={newTask.due_date}
-                    onChange={(e) => setNewTask({ ...newTask, due_date: e.target.value })}
-                    className="pl-9"
-                  />
-                </div>
+                <DateInput
+                  value={newTask.due_date}
+                  onChange={(v) => setNewTask({ ...newTask, due_date: v })}
+                />
               </div>
             </div>
           </div>
@@ -246,16 +242,11 @@ export function QuickActions() {
             </div>
             <div className="grid gap-2">
               <Label>Fecha del examen</Label>
-              <div className="relative">
-                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="date"
-                  value={newExam.date}
-                  onChange={(e) => setNewExam({ ...newExam, date: e.target.value })}
-                  className="pl-9"
-                  min={new Date().toISOString().split("T")[0]}
-                />
-              </div>
+              <DateInput
+                value={newExam.date}
+                onChange={(v) => setNewExam({ ...newExam, date: v })}
+                min={new Date().toISOString().split("T")[0]}
+              />
             </div>
             <div className="grid gap-2">
               <Label>Temas (separados por coma)</Label>

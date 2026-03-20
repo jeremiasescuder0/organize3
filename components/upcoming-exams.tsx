@@ -7,9 +7,10 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { BookOpen, Plus, Calendar, Trash2, ChevronDown, ChevronUp, Save } from "lucide-react"
+import { BookOpen, Plus, Trash2, ChevronDown, ChevronUp, Save } from "lucide-react"
 import { parseDateLocal, formatDateLocal } from "@/lib/date-utils"
 import { createClient } from "@/lib/supabase/client"
+import { DateInput } from "@/components/ui/date-input"
 
 interface Exam {
   id: string
@@ -165,12 +166,11 @@ export function UpcomingExams() {
                 </div>
                 <div>
                   <label className="text-sm font-medium mb-1.5 block">Fecha del examen</label>
-                  <div className="relative">
-                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input type="date" value={newExam.date}
-                      onChange={e => setNewExam({ ...newExam, date: e.target.value })}
-                      className="pl-9" min={new Date().toISOString().split("T")[0]} />
-                  </div>
+                  <DateInput
+                    value={newExam.date}
+                    onChange={v => setNewExam({ ...newExam, date: v })}
+                    min={new Date().toISOString().split("T")[0]}
+                  />
                 </div>
                 <div>
                   <label className="text-sm font-medium mb-1.5 block">Temas (separados por coma)</label>
@@ -231,12 +231,11 @@ export function UpcomingExams() {
                     </div>
                     <div className="grid gap-2">
                       <label className="text-xs font-medium text-muted-foreground">Fecha</label>
-                      <div className="relative">
-                        <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                        <Input type="date" value={editDraft.date}
-                          onChange={e => setEditDraft({ ...editDraft, date: e.target.value })}
-                          className="h-8 text-sm pl-8" />
-                      </div>
+                      <DateInput
+                        value={editDraft.date}
+                        onChange={v => setEditDraft({ ...editDraft, date: v })}
+                        className="h-8 text-sm"
+                      />
                     </div>
                   </div>
                   <div className="grid gap-2">
