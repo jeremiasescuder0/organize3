@@ -17,7 +17,6 @@ interface Recommendation {
 interface Exam {
   subject: string
   date: string
-  progress?: number
 }
 
 interface Task {
@@ -52,7 +51,7 @@ export function SmartRecommendations() {
     const [examsResult, tasksResult] = await Promise.all([
       supabase
         .from("exams")
-        .select("subject, date, progress")
+        .select("subject, date")
         .eq("user_id", user.id)
         .gte("date", todayStr)
         .order("date", { ascending: true })
@@ -91,12 +90,11 @@ export function SmartRecommendations() {
     })
     if (soonExam) {
       const days = getDaysUntil(soonExam.date)
-      const progress = soonExam.progress || 0
       recs.push({
         type: "soon",
         icon: TrendingDown,
-        title: progress < 50 ? "Materia con poco avance" : "Próximo examen",
-        content: `${soonExam.subject} — en ${days} días${progress > 0 ? ` · ${progress}% preparado` : ""}. Aprovechá para repasar.`,
+        title: "Próximo examen",
+        content: `${soonExam.subject} — en ${days} días. Aprovechá para repasar.`,
         color: "text-amber-600 dark:text-amber-400",
         bg: "bg-amber-50 dark:bg-amber-950/30",
       })

@@ -113,11 +113,12 @@ export function SubjectsManager() {
     setSaving(false)
   }
 
-  // Default subjects not yet enrolled (normalize to avoid accent/case mismatches)
-  const normalize = (s: string) => s.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+  // Default subjects not yet enrolled
+  const normalize = (s: string | null | undefined) =>
+    (s ?? "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
   const enrolledNames = new Set(subjects.map((s) => normalize(s.name)))
   const availableToAdd = defaultSubjects.filter(
-    (ds) => !enrolledNames.has(normalize(ds.name))
+    (ds) => ds.name && !enrolledNames.has(normalize(ds.name))
   )
 
   // Group available by year
