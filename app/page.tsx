@@ -4,11 +4,7 @@ import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { StatsCards } from "@/components/stats-cards"
-import { TodayFocus } from "@/components/today-focus"
-import { WeeklyPlan } from "@/components/weekly-plan"
-import { UpcomingExams } from "@/components/upcoming-exams"
-import { SmartRecommendations } from "@/components/smart-recommendations"
-import { QuickActions } from "@/components/quick-actions"
+import { DraggableDashboard } from "@/components/draggable-dashboard"
 import { SubjectSelector } from "@/components/subject-selector"
 import { FocusSession } from "@/components/focus-session"
 import { SubjectNotes } from "@/components/subject-notes"
@@ -86,17 +82,7 @@ export default function Home() {
           {/* Dashboard */}
           <TabsContent value="inicio" className="space-y-6 mt-0">
             <StatsCards />
-            <div className="grid gap-6 lg:grid-cols-3">
-              <div className="lg:col-span-2 space-y-6">
-                <TodayFocus />
-                <WeeklyPlan />
-                <UpcomingExams />
-              </div>
-              <div className="space-y-6">
-                <SmartRecommendations />
-                <QuickActions />
-              </div>
-            </div>
+            <DraggableDashboard />
           </TabsContent>
 
           {/* Focus Session */}
