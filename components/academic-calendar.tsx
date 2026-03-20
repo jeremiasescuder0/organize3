@@ -14,7 +14,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog"
-import { ChevronLeft, ChevronRight, Plus, BookOpen, CheckSquare, X } from "lucide-react"
+import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Plus, BookOpen, CheckSquare, X, Save, Trash2 } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { DateInput } from "@/components/ui/date-input"
 
@@ -56,6 +56,10 @@ export function AcademicCalendar() {
   const [selectedDay, setSelectedDay] = useState<Date | null>(null)
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [addType, setAddType] = useState<"task" | "exam">("task")
+  const [expandedEventId, setExpandedEventId] = useState<string | null>(null)
+  const [editEventDraft, setEditEventDraft] = useState<CalendarEvent | null>(null)
+  const [editTopics, setEditTopics] = useState("")
+  const [savingEvent, setSavingEvent] = useState(false)
   const [newEvent, setNewEvent] = useState({
     title: "",
     subject: "",
@@ -186,6 +190,49 @@ export function AcademicCalendar() {
 
     setNewEvent({ title: "", subject: "", date: "", time: "", priority: "medium", topics: "" })
     setAddDialogOpen(false)
+  }
+
+  const toggleEventExpand = (ev: CalendarEvent) => {
+    if (expandedEventId === ev.id) {
+      setExpandedEventId(null)
+      setEditEventDraft(null)
+    } else {
+      setExpandedEventId(ev.id)
+      setEditEventDraft({ ...ev })
+      setEditTopics("")
+    }
+  }
+
+  const saveEvent = async () => {
+    if (!editEventDraft) return
+    setSavingEvent(true)
+    if (editEventDraft.type === "task") {
+      const { error } = await supabase.from("tasks").update({
+        title: editEventDraft.title,
+        subject: editEventDraft.subject,
+        priority: editEventDraft.priority,
+        due_date: editEventDraft.date,
+      }).eq("id", editEventDraft.id)
+      if (!error) {
+        setEvents(events.map(e => e.id === editEventDraft.id ? editEventDraft : e))
+        setExpandedEventId(null)
+        setEditEventDraft(null)
+      }
+    } else {
+      const topicsArray = editTopics.split(",").map(t => t.trim()).filter(Boolean)
+      const updated = { ...editEventDraft, title: editEventDraft.subject }
+      const { error } = await supabase.from("exams").update({
+        subject: editEventDraft.subject,
+        date: editEventDraft.date,
+        topics: topicsArray,
+      }).eq("id", editEventDraft.id)
+      if (!error) {
+        setEvents(events.map(e => e.id === editEventDraft.id ? updated : e))
+        setExpandedEventId(null)
+        setEditEventDraft(null)
+      }
+    }
+    setSavingEvent(false)
   }
 
   const deleteEvent = async (event: CalendarEvent) => {
@@ -392,21 +439,21 @@ export function AcademicCalendar() {
                   No hay eventos este día.
                 </p>
               ) : (
-                selectedDayEvents.map((ev) => (
-                  <div
-                    key={ev.id}
-                    className={`p-3 rounded-lg border ${
+                selectedDayEvents.map((ev) => {
+                  const isExpanded = expandedEventId === ev.id
+                  return (
+                    <div key={ev.id} className={`rounded-lg border transition-all ${
+                      isExpanded ? "border-primary/50 bg-primary/5" :
                       ev.type === "exam"
                         ? "border-red-200 bg-red-50 dark:border-red-900/50 dark:bg-red-950/20"
-                        : "border-border/50 bg-secondary/30"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-start gap-2 flex-1 min-w-0">
+                        : "border-border/50 bg-secondary/30 hover:border-border"
+                    }`}>
+                      {/* Row */}
+                      <div className="flex items-center gap-2 p-3 cursor-pointer" onClick={() => toggleEventExpand(ev)}>
                         {ev.type === "exam" ? (
-                          <BookOpen className="h-4 w-4 text-red-600 dark:text-red-400 mt-0.5 shrink-0" />
+                          <BookOpen className="h-4 w-4 text-red-600 dark:text-red-400 shrink-0" />
                         ) : (
-                          <CheckSquare className={`h-4 w-4 mt-0.5 shrink-0 ${ev.completed ? "text-muted-foreground" : "text-primary"}`} />
+                          <CheckSquare className={`h-4 w-4 shrink-0 ${ev.completed ? "text-muted-foreground" : "text-primary"}`} />
                         )}
                         <div className="flex-1 min-w-0">
                           <p className={`text-sm font-medium truncate ${ev.completed ? "line-through text-muted-foreground" : "text-foreground"}`}>
@@ -416,30 +463,99 @@ export function AcademicCalendar() {
                             <p className="text-xs text-muted-foreground mt-0.5">{ev.subject}</p>
                           )}
                         </div>
-                      </div>
-                      <div className="flex items-center gap-1 shrink-0">
                         {ev.type === "task" && ev.priority && (
-                          <Badge variant="secondary" className={`text-xs ${priorityColors[ev.priority]}`}>
+                          <Badge variant="secondary" className={`text-xs shrink-0 ${priorityColors[ev.priority]}`}>
                             {ev.priority === "high" ? "Alta" : ev.priority === "medium" ? "Media" : "Baja"}
                           </Badge>
                         )}
                         {ev.type === "exam" && (
-                          <Badge variant="secondary" className="text-xs bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-400">
+                          <Badge variant="secondary" className="text-xs shrink-0 bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-400">
                             Examen
                           </Badge>
                         )}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                          onClick={() => deleteEvent(ev)}
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
+                        {isExpanded
+                          ? <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
+                          : <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />}
                       </div>
+
+                      {/* Expanded edit panel */}
+                      {isExpanded && editEventDraft && (
+                        <div className="px-3 pb-3 space-y-3 border-t border-border/50 pt-3">
+                          {editEventDraft.type === "task" && (
+                            <div className="grid gap-2">
+                              <label className="text-xs font-medium text-muted-foreground">Título</label>
+                              <Input value={editEventDraft.title}
+                                onChange={e => setEditEventDraft({ ...editEventDraft, title: e.target.value })}
+                                className="h-8 text-sm" />
+                            </div>
+                          )}
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="grid gap-2">
+                              <label className="text-xs font-medium text-muted-foreground">Materia</label>
+                              <Select value={editEventDraft.subject}
+                                onValueChange={v => setEditEventDraft({ ...editEventDraft, subject: v, ...(editEventDraft.type === "exam" ? { title: v } : {}) })}>
+                                <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  {subjects.map(s => (
+                                    <SelectItem key={s.id} value={s.name}>
+                                      <div className="flex items-center gap-2">
+                                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: s.color }} />{s.name}
+                                      </div>
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="grid gap-2">
+                              <label className="text-xs font-medium text-muted-foreground">Fecha</label>
+                              <DateInput value={editEventDraft.date}
+                                onChange={v => setEditEventDraft({ ...editEventDraft, date: v })}
+                                className="h-8 text-sm" />
+                            </div>
+                          </div>
+                          {editEventDraft.type === "task" && (
+                            <div className="grid gap-2">
+                              <label className="text-xs font-medium text-muted-foreground">Prioridad</label>
+                              <Select value={editEventDraft.priority}
+                                onValueChange={(v: "high"|"medium"|"low") => setEditEventDraft({ ...editEventDraft, priority: v })}>
+                                <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="high">Alta</SelectItem>
+                                  <SelectItem value="medium">Media</SelectItem>
+                                  <SelectItem value="low">Baja</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          )}
+                          {editEventDraft.type === "exam" && (
+                            <div className="grid gap-2">
+                              <label className="text-xs font-medium text-muted-foreground">Temas (separados por coma)</label>
+                              <Input value={editTopics}
+                                onChange={e => setEditTopics(e.target.value)}
+                                placeholder="Ej: Capítulo 1, Capítulo 2"
+                                className="h-8 text-sm" />
+                            </div>
+                          )}
+                          <div className="flex items-center justify-between pt-1">
+                            <Button variant="ghost" size="sm" className="gap-1.5 text-destructive hover:text-destructive h-8"
+                              onClick={() => { deleteEvent(ev); setExpandedEventId(null) }}>
+                              <Trash2 className="h-3.5 w-3.5" />Eliminar
+                            </Button>
+                            <div className="flex gap-2">
+                              <Button variant="outline" size="sm" className="h-8"
+                                onClick={() => { setExpandedEventId(null); setEditEventDraft(null) }}>
+                                Cancelar
+                              </Button>
+                              <Button size="sm" className="h-8 gap-1.5" onClick={saveEvent} disabled={savingEvent}>
+                                <Save className="h-3.5 w-3.5" />{savingEvent ? "Guardando..." : "Guardar"}
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                ))
+                  )
+                })
               )}
             </CardContent>
           </Card>
