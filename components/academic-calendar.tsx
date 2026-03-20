@@ -127,7 +127,9 @@ export function AcademicCalendar() {
   }
 
   const addEvent = async () => {
-    if (!newEvent.title || !newEvent.date) return
+    if (!newEvent.date) return
+    if (addType === "task" && !newEvent.title) return
+    if (addType === "exam" && !newEvent.subject) return
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
@@ -164,7 +166,7 @@ export function AcademicCalendar() {
         .from("exams")
         .insert({
           user_id: user.id,
-          subject: newEvent.subject || newEvent.title,
+          subject: newEvent.subject,
           date: newEvent.date,
           topics: topicsArray,
         })
@@ -473,35 +475,35 @@ export function AcademicCalendar() {
               </Button>
             </div>
 
-            <div className="grid gap-2">
-              <Label>{addType === "task" ? "Título de la tarea" : "Materia del examen"}</Label>
-              <Input
-                placeholder={addType === "task" ? "Ej: Estudiar capítulo 5" : "Ej: Análisis Matemático"}
-                value={newEvent.title}
-                onChange={(e) => setNewEvent({ ...newEvent, title: e.target.value })}
-              />
-            </div>
-
             {addType === "task" && (
               <div className="grid gap-2">
-                <Label>Materia</Label>
-                <Select value={newEvent.subject} onValueChange={(v) => setNewEvent({ ...newEvent, subject: v })}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccioná una materia" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {subjects.map((s) => (
-                      <SelectItem key={s.id} value={s.name}>
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: s.color }} />
-                          {s.name}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label>Título de la tarea</Label>
+                <Input
+                  placeholder="Ej: Estudiar capítulo 5"
+                  value={newEvent.title}
+                  onChange={(e) => setNewEvent({ ...newEvent, title: e.target.value })}
+                />
               </div>
             )}
+
+            <div className="grid gap-2">
+              <Label>Materia</Label>
+              <Select value={newEvent.subject} onValueChange={(v) => setNewEvent({ ...newEvent, subject: v })}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccioná una materia" />
+                </SelectTrigger>
+                <SelectContent>
+                  {subjects.map((s) => (
+                    <SelectItem key={s.id} value={s.name}>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: s.color }} />
+                        {s.name}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
