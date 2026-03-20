@@ -10,7 +10,11 @@ const _jetbrainsMono = JetBrains_Mono({ subsets: ["latin"] })
 export const metadata: Metadata = {
   title: "Organize",
   description: "App de organización personal para estudiantes universitarios",
-  generator: "v0.app",
+  icons: {
+    icon: "/icon.svg",
+    shortcut: "/icon.svg",
+    apple: "/icon.svg",
+  },
 }
 
 export default function RootLayout({
