@@ -48,7 +48,15 @@ export default function SignUpPage() {
       if (error) throw error
       router.push('/auth/sign-up-success')
     } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : 'Ocurrio un error')
+      const msg = error instanceof Error ? error.message : ''
+      const translations: Record<string, string> = {
+        'User already registered': 'Este email ya está registrado. Iniciá sesión.',
+        'Email rate limit exceeded': 'Límite de emails excedido. Esperá unos minutos e intentá de nuevo.',
+        'Invalid email': 'El email ingresado no es válido.',
+        'Password should be at least 6 characters': 'La contraseña debe tener al menos 6 caracteres.',
+        'Signup is disabled': 'El registro está deshabilitado temporalmente.',
+      }
+      setError(translations[msg] ?? (msg || 'Ocurrió un error. Intentá de nuevo.'))
     } finally {
       setIsLoading(false)
     }
