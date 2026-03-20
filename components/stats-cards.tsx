@@ -2,14 +2,14 @@
 
 import { useEffect, useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
-import { CalendarDays, CheckSquare, Clock, FileText } from "lucide-react"
+import { CalendarDays, CheckSquare, Clock, BookOpen } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 
 interface StatsData {
   upcomingExams: number
   pendingTasks: number
   studyHours: number
-  thesisProgress: number
+  subjects: number
 }
 
 export function StatsCards() {
@@ -17,7 +17,7 @@ export function StatsCards() {
     upcomingExams: 0,
     pendingTasks: 0,
     studyHours: 0,
-    thesisProgress: 0,
+    subjects: 0,
   })
   const [loading, setLoading] = useState(true)
   const supabase = createClient()
@@ -53,17 +53,16 @@ export function StatsCards() {
     const totalMinutes = sessions?.reduce((acc, s) => acc + (s.duration_minutes || 0), 0) || 0
     const studyHours = Math.round((totalMinutes / 60) * 10) / 10
 
-    const { data: thesis } = await supabase
-      .from("thesis")
-      .select("progress")
+    const { count: subjectsCount } = await supabase
+      .from("subjects")
+      .select("*", { count: "exact", head: true })
       .eq("user_id", user.id)
-      .single()
 
     setStats({
       upcomingExams: examsCount || 0,
       pendingTasks: tasksCount || 0,
       studyHours,
-      thesisProgress: thesis?.progress || 0,
+      subjects: subjectsCount || 0,
     })
     setLoading(false)
   }
@@ -97,10 +96,10 @@ export function StatsCards() {
       iconColor: "text-emerald-600 dark:text-emerald-400",
     },
     {
-      title: "Progreso Tesis",
-      value: loading ? "-" : `${stats.thesisProgress}%`,
-      subtitle: "Completado",
-      icon: FileText,
+      title: "Materias",
+      value: loading ? "-" : stats.subjects,
+      subtitle: "Inscripto",
+      icon: BookOpen,
       gradient: "from-violet-500/20 to-violet-500/5 dark:from-violet-500/10 dark:to-violet-500/5",
       iconBg: "bg-violet-500/15 dark:bg-violet-500/20",
       iconColor: "text-violet-600 dark:text-violet-400",

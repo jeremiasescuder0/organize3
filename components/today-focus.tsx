@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Play, Sparkles, Plus } from "lucide-react"
+import { Sparkles, Plus } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 
 interface Task {
@@ -237,10 +237,6 @@ export function TodayFocus() {
             </div>
           ))
         )}
-        <Button className="w-full mt-4 gap-2" size="sm">
-          <Play className="h-4 w-4" />
-          Iniciar Sesion de Enfoque
-        </Button>
       </CardContent>
     </Card>
   )

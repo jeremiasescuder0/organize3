@@ -8,7 +8,7 @@ import { Progress } from "@/components/ui/progress"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { BookOpen, Plus, ChevronRight, Calendar } from "lucide-react"
+import { BookOpen, Plus, Calendar } from "lucide-react"
 import { parseDateLocal, formatDateLocal } from "@/lib/date-utils"
 import { createClient } from "@/lib/supabase/client"
 
@@ -246,10 +246,6 @@ export function UpcomingExams() {
             )
           })
         )}
-        <Button variant="ghost" className="w-full text-sm text-muted-foreground hover:text-foreground gap-1">
-          Ver todos los examenes
-          <ChevronRight className="h-4 w-4" />
-        </Button>
       </CardContent>
     </Card>
   )

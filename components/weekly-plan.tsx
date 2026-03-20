@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Calendar, Wand2 } from "lucide-react"
+import { Calendar } from "lucide-react"
 
 const weekDays = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
 
@@ -30,10 +30,6 @@ export function WeeklyPlan() {
             </div>
             <CardTitle className="text-base font-semibold">Plan Semanal</CardTitle>
           </div>
-          <Button variant="outline" size="sm" className="gap-2 text-xs">
-            <Wand2 className="h-3 w-3" />
-            Auto-planificar
-          </Button>
         </div>
       </CardHeader>
       <CardContent>
