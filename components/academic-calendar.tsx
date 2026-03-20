@@ -285,9 +285,9 @@ export function AcademicCalendar() {
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-6 lg:grid-cols-5">
         {/* Calendar grid */}
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-3">
           <Card className="border-border/50 shadow-sm">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
@@ -401,7 +401,7 @@ export function AcademicCalendar() {
         </div>
 
         {/* Day detail panel */}
-        <div>
+        <div className="lg:col-span-2">
           <Card className="border-border/50 shadow-sm">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
