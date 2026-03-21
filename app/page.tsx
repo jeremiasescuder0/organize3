@@ -10,9 +10,8 @@ import { FocusSession } from "@/components/focus-session"
 import { SubjectNotes } from "@/components/subject-notes"
 import { AcademicCalendar } from "@/components/academic-calendar"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { BookOpen, Brain, StickyNote, CalendarDays, Clock } from "lucide-react"
+import { BookOpen, Brain, StickyNote, CalendarDays } from "lucide-react"
 import { DragHint } from "@/components/drag-hint"
-import { WeeklyTimetable } from "@/components/weekly-timetable"
 
 export default function Home() {
   const [mounted, setMounted] = useState(false)
@@ -75,10 +74,6 @@ export default function Home() {
               <StickyNote className="h-4 w-4" />
               Notas
             </TabsTrigger>
-            <TabsTrigger value="horarios" className="gap-2 text-sm">
-              <Clock className="h-4 w-4" />
-              Horarios
-            </TabsTrigger>
             <TabsTrigger value="calendario" className="gap-2 text-sm">
               <CalendarDays className="h-4 w-4" />
               Calendario
@@ -101,11 +96,6 @@ export default function Home() {
           {/* Notes */}
           <TabsContent value="notas" className="mt-0">
             <SubjectNotes />
-          </TabsContent>
-
-          {/* Timetable */}
-          <TabsContent value="horarios" className="mt-0">
-            <WeeklyTimetable />
           </TabsContent>
 
           {/* Calendar */}
