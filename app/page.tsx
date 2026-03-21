@@ -82,7 +82,9 @@ export default function Home() {
 
           {/* Dashboard */}
           <TabsContent value="inicio" className="space-y-6 mt-0">
-            <StatsCards />
+            <div className="rounded-2xl border border-border/40 bg-secondary/30 px-6 py-5">
+              <StatsCards />
+            </div>
             <DraggableDashboard />
           </TabsContent>
 
