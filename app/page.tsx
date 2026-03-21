@@ -101,6 +101,14 @@ export default function Home() {
           </TabsContent>
         </Tabs>
       </main>
+
+      <footer className="mt-12 pb-6 text-center text-xs text-muted-foreground/50 space-x-3">
+        <span>© {new Date().getFullYear()} Organize</span>
+        <span>·</span>
+        <a href="/terms" className="hover:text-muted-foreground transition-colors">
+          Términos y condiciones
+        </a>
+      </footer>
     </div>
   )
 }
