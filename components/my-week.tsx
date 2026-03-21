@@ -6,10 +6,9 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import {
   Calendar, ChevronLeft, ChevronRight, BookOpen, ClipboardList,
-  Plus, Trash2, ChevronDown, ChevronUp, Save,
+  Trash2, ChevronDown, ChevronUp, Save,
 } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { DateInput } from "@/components/ui/date-input"
@@ -107,8 +106,6 @@ export function MyWeek() {
   const [subjects, setSubjects] = useState<SubjectOption[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedDate, setSelectedDate] = useState("")
-  const [dialogOpen, setDialogOpen] = useState(false)
-  const [newExam, setNewExam] = useState({ subject: "", date: "", topics: "" })
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [editDraft, setEditDraft] = useState<WeekItem | null>(null)
   const [editTopics, setEditTopics] = useState("")
@@ -191,19 +188,7 @@ export function MyWeek() {
   const selectedDay = days.find(d => d.date === selectedDate) ?? days[0]
   const weekTotal = days.reduce((sum, d) => sum + d.total, 0)
 
-  // ── Exam CRUD ──────────────────────────────────────────
-
-  const addExam = async () => {
-    if (!newExam.subject || !newExam.date) return
-    const topicsArray = newExam.topics ? newExam.topics.split(",").map(t => t.trim()).filter(Boolean) : []
-    const { error } = await supabase.from("exams")
-      .insert({ subject: newExam.subject, date: newExam.date, topics: topicsArray })
-    if (!error) {
-      setNewExam({ subject: "", date: "", topics: "" })
-      setDialogOpen(false)
-      loadData()
-    }
-  }
+  // ── Exam edit/delete ────────────────────────────────────
 
   const saveEdit = async () => {
     if (!editDraft) return
@@ -468,53 +453,12 @@ export function MyWeek() {
           </div>
         )}
 
-        {/* ── Footer: summary + add exam ── */}
-        <div className="flex items-center justify-between pt-1">
-          <p className="text-xs text-muted-foreground">
-            {loading
-              ? ""
-              : weekTotal === 0
-                ? "Semana libre"
-                : `${weekTotal} pendiente${weekTotal !== 1 ? "s" : ""} esta semana`
-            }
+        {/* ── Footer: summary ── */}
+        {!loading && (
+          <p className="text-xs text-muted-foreground pt-1">
+            {weekTotal === 0 ? "Semana libre" : `${weekTotal} pendiente${weekTotal !== 1 ? "s" : ""} esta semana`}
           </p>
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" size="sm" className="h-7 gap-1 text-xs">
-                <Plus className="h-3 w-3" />Examen
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader><DialogTitle>Nuevo Examen</DialogTitle></DialogHeader>
-              <div className="space-y-4 pt-4">
-                <div>
-                  <label className="text-sm font-medium mb-1.5 block">Materia</label>
-                  <Select value={newExam.subject} onValueChange={v => setNewExam({ ...newExam, subject: v })}>
-                    <SelectTrigger><SelectValue placeholder="Seleccioná una materia" /></SelectTrigger>
-                    <SelectContent>
-                      {subjects.map(s => (
-                        <SelectItem key={s.id} value={s.name}>
-                          <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: s.color }} />{s.name}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <label className="text-sm font-medium mb-1.5 block">Fecha</label>
-                  <DateInput value={newExam.date} onChange={v => setNewExam({ ...newExam, date: v })} min={new Date().toISOString().split("T")[0]} />
-                </div>
-                <div>
-                  <label className="text-sm font-medium mb-1.5 block">Temas (separados por coma)</label>
-                  <Input placeholder="Ej: Capítulo 1, Capítulo 2" value={newExam.topics} onChange={e => setNewExam({ ...newExam, topics: e.target.value })} />
-                </div>
-                <Button onClick={addExam} className="w-full">Agregar Examen</Button>
-              </div>
-            </DialogContent>
-          </Dialog>
-        </div>
+        )}
       </CardContent>
     </Card>
   )
