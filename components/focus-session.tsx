@@ -30,13 +30,159 @@ interface TimerSettings {
 
 const ambientSounds = [
   { id: "none", name: "Sin sonido", emoji: "🔇" },
-  { id: "rain", name: "Lluvia", emoji: "🌧️", url: "https://cdn.pixabay.com/download/audio/2022/05/13/audio_257112ce99.mp3" },
-  { id: "cafe", name: "Cafetería", emoji: "☕", url: "https://cdn.pixabay.com/download/audio/2022/03/10/audio_4deafc2cb6.mp3" },
-  { id: "forest", name: "Bosque", emoji: "🌲", url: "https://cdn.pixabay.com/download/audio/2022/03/15/audio_c610232532.mp3" },
-  { id: "ocean", name: "Océano", emoji: "🌊", url: "https://cdn.pixabay.com/download/audio/2022/06/07/audio_9f2baae3f2.mp3" },
-  { id: "fireplace", name: "Chimenea", emoji: "🔥", url: "https://cdn.pixabay.com/download/audio/2022/03/15/audio_141b142c82.mp3" },
-  { id: "whitenoise", name: "Ruido blanco", emoji: "📻", url: "https://cdn.pixabay.com/download/audio/2022/03/24/audio_a0c5b01c97.mp3" },
+  { id: "rain", name: "Lluvia", emoji: "🌧️" },
+  { id: "ocean", name: "Océano", emoji: "🌊" },
+  { id: "wind", name: "Viento", emoji: "🍃" },
+  { id: "whitenoise", name: "Ruido blanco", emoji: "📻" },
+  { id: "brownnoise", name: "Ruido marrón", emoji: "🎵" },
+  { id: "binaural", name: "Binaural", emoji: "🧠" },
 ]
+
+// ── Web Audio API generators (no external URLs needed) ──
+
+function createNoiseBuffer(ctx: AudioContext, type: "white" | "brown"): AudioBuffer {
+  const bufferSize = ctx.sampleRate * 2
+  const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate)
+  const data = buffer.getChannelData(0)
+
+  if (type === "white") {
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = Math.random() * 2 - 1
+    }
+  } else {
+    let last = 0
+    for (let i = 0; i < bufferSize; i++) {
+      const white = Math.random() * 2 - 1
+      last = (last + 0.02 * white) / 1.02
+      data[i] = last * 3.5
+    }
+  }
+  return buffer
+}
+
+function startAmbientSound(
+  soundId: string,
+  volume: number,
+): { ctx: AudioContext; gain: GainNode } | null {
+  if (soundId === "none") return null
+
+  const ctx = new AudioContext()
+  const gain = ctx.createGain()
+  gain.gain.value = volume / 100
+  gain.connect(ctx.destination)
+
+  if (soundId === "whitenoise" || soundId === "brownnoise") {
+    const buffer = createNoiseBuffer(ctx, soundId === "whitenoise" ? "white" : "brown")
+    const source = ctx.createBufferSource()
+    source.buffer = buffer
+    source.loop = true
+
+    // Low-pass filter for smoother sound
+    const filter = ctx.createBiquadFilter()
+    filter.type = "lowpass"
+    filter.frequency.value = soundId === "whitenoise" ? 8000 : 400
+    source.connect(filter)
+    filter.connect(gain)
+    source.start()
+  } else if (soundId === "rain") {
+    // Rain = filtered white noise + occasional crackle
+    const buffer = createNoiseBuffer(ctx, "white")
+    const source = ctx.createBufferSource()
+    source.buffer = buffer
+    source.loop = true
+    const bp = ctx.createBiquadFilter()
+    bp.type = "bandpass"
+    bp.frequency.value = 1500
+    bp.Q.value = 0.5
+    source.connect(bp)
+    bp.connect(gain)
+    source.start()
+
+    // Add a second layer for low rumble
+    const buffer2 = createNoiseBuffer(ctx, "brown")
+    const source2 = ctx.createBufferSource()
+    source2.buffer = buffer2
+    source2.loop = true
+    const lp = ctx.createBiquadFilter()
+    lp.type = "lowpass"
+    lp.frequency.value = 200
+    source2.connect(lp)
+    const rumbleGain = ctx.createGain()
+    rumbleGain.gain.value = 0.3
+    lp.connect(rumbleGain)
+    rumbleGain.connect(gain)
+    source2.start()
+  } else if (soundId === "ocean") {
+    // Ocean = modulated brown noise
+    const buffer = createNoiseBuffer(ctx, "brown")
+    const source = ctx.createBufferSource()
+    source.buffer = buffer
+    source.loop = true
+    const lp = ctx.createBiquadFilter()
+    lp.type = "lowpass"
+    lp.frequency.value = 500
+    source.connect(lp)
+
+    // LFO for wave-like volume modulation
+    const lfo = ctx.createOscillator()
+    lfo.frequency.value = 0.08
+    const lfoGain = ctx.createGain()
+    lfoGain.gain.value = 0.3
+    lfo.connect(lfoGain)
+    const modGain = ctx.createGain()
+    modGain.gain.value = 0.7
+    lfoGain.connect(modGain.gain)
+    lp.connect(modGain)
+    modGain.connect(gain)
+    lfo.start()
+    source.start()
+  } else if (soundId === "wind") {
+    // Wind = filtered noise with slow modulation
+    const buffer = createNoiseBuffer(ctx, "white")
+    const source = ctx.createBufferSource()
+    source.buffer = buffer
+    source.loop = true
+    const bp = ctx.createBiquadFilter()
+    bp.type = "bandpass"
+    bp.frequency.value = 800
+    bp.Q.value = 0.3
+    source.connect(bp)
+
+    const lfo = ctx.createOscillator()
+    lfo.frequency.value = 0.15
+    const lfoGain = ctx.createGain()
+    lfoGain.gain.value = 400
+    lfo.connect(lfoGain)
+    lfoGain.connect(bp.frequency)
+    lfo.start()
+    bp.connect(gain)
+    source.start()
+  } else if (soundId === "binaural") {
+    // Binaural beat: 200Hz left, 210Hz right (10Hz alpha waves)
+    const merger = ctx.createChannelMerger(2)
+    const osc1 = ctx.createOscillator()
+    osc1.frequency.value = 200
+    osc1.type = "sine"
+    const g1 = ctx.createGain()
+    g1.gain.value = 0.3
+    osc1.connect(g1)
+    g1.connect(merger, 0, 0)
+
+    const osc2 = ctx.createOscillator()
+    osc2.frequency.value = 210
+    osc2.type = "sine"
+    const g2 = ctx.createGain()
+    g2.gain.value = 0.3
+    osc2.connect(g2)
+    g2.connect(merger, 0, 1)
+
+    merger.connect(gain)
+    osc1.start()
+    osc2.start()
+  }
+
+  return { ctx, gain }
+}
 
 const modeConfig = {
   focus: { label: "Concentración", icon: Brain, color: "text-primary", bg: "bg-primary/10" },
@@ -60,7 +206,7 @@ export function FocusSession() {
   const [selectedSound, setSelectedSound] = useState("none")
   const [volume, setVolume] = useState(50)
   const [isMuted, setIsMuted] = useState(false)
-  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const audioRef = useRef<{ ctx: AudioContext; gain: GainNode } | null>(null)
 
   // Load saved settings
   useEffect(() => {
@@ -101,21 +247,15 @@ export function FocusSession() {
   // Audio management
   useEffect(() => {
     if (audioRef.current) {
-      audioRef.current.pause()
+      audioRef.current.ctx.close()
       audioRef.current = null
     }
     if (selectedSound !== "none" && isRunning) {
-      const sound = ambientSounds.find((s) => s.id === selectedSound)
-      if (sound && sound.url) {
-        audioRef.current = new Audio(sound.url)
-        audioRef.current.loop = true
-        audioRef.current.volume = isMuted ? 0 : volume / 100
-        audioRef.current.play().catch(() => {})
-      }
+      audioRef.current = startAmbientSound(selectedSound, isMuted ? 0 : volume)
     }
     return () => {
       if (audioRef.current) {
-        audioRef.current.pause()
+        audioRef.current.ctx.close()
         audioRef.current = null
       }
     }
@@ -123,7 +263,7 @@ export function FocusSession() {
 
   useEffect(() => {
     if (audioRef.current) {
-      audioRef.current.volume = isMuted ? 0 : volume / 100
+      audioRef.current.gain.gain.value = isMuted ? 0 : volume / 100
     }
   }, [volume, isMuted])
 
