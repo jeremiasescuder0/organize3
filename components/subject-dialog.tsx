@@ -42,7 +42,7 @@ export function SubjectDialog({ open, onOpenChange, onSave, subject }: SubjectDi
   useEffect(() => {
     if (subject) {
       setName(subject.name)
-      setDescription(subject.description)
+      setDescription(subject.description ?? "")
       setColor(subject.color)
     } else {
       setName("")

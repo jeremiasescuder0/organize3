@@ -39,7 +39,7 @@ export function TodayFocus() {
   const [subjects, setSubjects] = useState<Subject[]>([])
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [newTask, setNewTask] = useState({ title: "", subject: "", priority: "medium" as const })
+  const [newTask, setNewTask] = useState<{ title: string; subject: string; priority: "high" | "medium" | "low" }>({ title: "", subject: "", priority: "medium" })
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [editDraft, setEditDraft] = useState<Task | null>(null)
   const [saving, setSaving] = useState(false)

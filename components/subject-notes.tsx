@@ -60,7 +60,7 @@ function groupOrder(label: string) {
   return order[label] ?? 99
 }
 
-const PURIFY_CONFIG: DOMPurify.Config = {
+const PURIFY_CONFIG = {
   ALLOWED_TAGS: ['p','br','b','strong','i','em','u','s','strike','h1','h2','ul','ol','li','a','span','div'],
   ALLOWED_ATTR: ['href','target','rel','style'],
   ALLOW_DATA_ATTR: false,
@@ -69,7 +69,7 @@ const PURIFY_CONFIG: DOMPurify.Config = {
 
 function sanitize(html: string): string {
   if (typeof window === "undefined") return html
-  return DOMPurify.sanitize(html, PURIFY_CONFIG) as string
+  return String(DOMPurify.sanitize(html, PURIFY_CONFIG))
 }
 
 function dbRowToNote(row: any): Note {
