@@ -59,6 +59,20 @@ function groupOrder(label: string) {
   return order[label] ?? 99
 }
 
+function dbRowToNote(row: any): Note {
+  return {
+    id: row.id,
+    subjectId: row.subject_id ?? "",
+    subjectName: row.subject_name ?? "",
+    subjectColor: row.subject_color ?? "#6366f1",
+    title: row.title ?? "",
+    date: row.date,
+    content: row.content ?? "",
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
+
 // ── Main component ─────────────────────────────────────
 export function SubjectNotes() {
   const [subjects, setSubjects] = useState<Subject[]>([])
@@ -81,9 +95,8 @@ export function SubjectNotes() {
   const editorRef = useRef<HTMLDivElement>(null)
 
   const supabase = createClient()
-  const storageKey = (uid: string) => `organize_notes_v2_${uid}`
 
-  // ── Load ──────────────────────────────────────────────
+  // ── Load & migrate ────────────────────────────────────
   useEffect(() => { init() }, [])
 
   const init = async () => {
@@ -95,14 +108,54 @@ export function SubjectNotes() {
       .from("subjects").select("*").eq("user_id", user.id).order("name")
     if (subs) setSubjects(subs)
 
-    const raw = localStorage.getItem(storageKey(user.id))
-    setNotes(raw ? JSON.parse(raw) : [])
-    setLoading(false)
-  }
+    // Load notes from Supabase
+    const { data: dbNotes } = await supabase
+      .from("notes")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("date", { ascending: false })
 
-  const persist = (updated: Note[], uid: string) => {
-    localStorage.setItem(storageKey(uid), JSON.stringify(updated))
-    setNotes(updated)
+    // Migrate from localStorage if needed
+    const lsKey = `organize_notes_v2_${user.id}`
+    const raw = localStorage.getItem(lsKey)
+    if (raw) {
+      try {
+        const lsNotes: Note[] = JSON.parse(raw)
+        if (lsNotes.length > 0) {
+          const existingIds = new Set((dbNotes ?? []).map((n: any) => n.id))
+          const toMigrate = lsNotes.filter(n => !existingIds.has(n.id))
+          if (toMigrate.length > 0) {
+            await supabase.from("notes").insert(
+              toMigrate.map(n => ({
+                id: n.id,
+                user_id: user.id,
+                subject_id: n.subjectId || null,
+                subject_name: n.subjectName,
+                subject_color: n.subjectColor,
+                title: n.title,
+                date: n.date,
+                content: n.content,
+                created_at: n.createdAt,
+                updated_at: n.updatedAt,
+              }))
+            )
+          }
+        }
+      } catch {}
+      localStorage.removeItem(lsKey)
+
+      // Reload after migration
+      const { data: merged } = await supabase
+        .from("notes")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("date", { ascending: false })
+      setNotes((merged ?? []).map(dbRowToNote))
+    } else {
+      setNotes((dbNotes ?? []).map(dbRowToNote))
+    }
+
+    setLoading(false)
   }
 
   // ── Editor init ───────────────────────────────────────
@@ -112,25 +165,37 @@ export function SubjectNotes() {
     editorRef.current.focus()
   }, [editing?.id])
 
-  // ── Save ──────────────────────────────────────────────
-  const saveNote = useCallback(() => {
+  // ── Save to Supabase ──────────────────────────────────
+  const saveNote = useCallback(async () => {
     if (!editing || !userId || !editorRef.current) return
     const content = editorRef.current.innerHTML
-    const updated = notes.map(n =>
-      n.id === editing.id
-        ? { ...n, title: editing.title, date: editing.date,
-            subjectId: editing.subjectId, subjectName: editing.subjectName,
-            subjectColor: editing.subjectColor, content, updatedAt: new Date().toISOString() }
-        : n
-    )
-    // If new note not yet in array, add it
-    if (!notes.find(n => n.id === editing.id)) {
-      updated.push({ ...editing, content, updatedAt: new Date().toISOString() })
+    const now = new Date().toISOString()
+    const payload = {
+      id: editing.id,
+      user_id: userId,
+      subject_id: editing.subjectId || null,
+      subject_name: editing.subjectName,
+      subject_color: editing.subjectColor,
+      title: editing.title,
+      date: editing.date,
+      content,
+      updated_at: now,
     }
-    persist(updated.sort((a,b) => b.date.localeCompare(a.date)), userId)
-    setSaved(true)
-  }, [editing, userId, notes])
 
+    await supabase.from("notes").upsert(payload)
+
+    setNotes(prev => {
+      const updated: Note = { ...editing, content, updatedAt: now }
+      const exists = prev.find(n => n.id === editing.id)
+      const list = exists
+        ? prev.map(n => n.id === editing.id ? updated : n)
+        : [updated, ...prev]
+      return list.sort((a, b) => b.date.localeCompare(a.date))
+    })
+    setSaved(true)
+  }, [editing, userId])
+
+  // Auto-save debounce
   useEffect(() => {
     if (saved || !editing) return
     const t = setTimeout(() => saveNote(), 2000)
@@ -141,7 +206,7 @@ export function SubjectNotes() {
   const createNote = () => {
     const defaultSubject = subjects[0]
     const note: Note = {
-      id: Date.now().toString(),
+      id: crypto.randomUUID(),
       subjectId: defaultSubject?.id || "",
       subjectName: defaultSubject?.name || "",
       subjectColor: defaultSubject?.color || "#6366f1",
@@ -156,9 +221,9 @@ export function SubjectNotes() {
     setSaved(false)
   }
 
-  const deleteNote = (id: string) => {
-    if (!userId) return
-    persist(notes.filter(n => n.id !== id), userId)
+  const deleteNote = async (id: string) => {
+    await supabase.from("notes").delete().eq("id", id)
+    setNotes(prev => prev.filter(n => n.id !== id))
   }
 
   const changeSubject = (subjectId: string) => {
@@ -291,8 +356,7 @@ export function SubjectNotes() {
               Eliminar
             </Button>
           )}
-          <Button size="sm" variant="outline" className="gap-2"
-            onClick={exportToPdf}>
+          <Button size="sm" variant="outline" className="gap-2" onClick={exportToPdf}>
             <FileDown className="h-3.5 w-3.5" />
             Exportar PDF
           </Button>
@@ -306,7 +370,7 @@ export function SubjectNotes() {
 
       <Card className="border-border/50 shadow-sm">
         <CardContent className="p-0">
-          {/* Meta row: title, subject, date */}
+          {/* Meta row */}
           <div className="px-6 pt-5 pb-4 border-b border-border/50 space-y-3"
             style={{ borderLeft: `4px solid ${editing.subjectColor}` }}>
             <Input
@@ -439,7 +503,6 @@ export function SubjectNotes() {
             ))}
           </SelectContent>
         </Select>
-        {/* Group by toggle */}
         <div className="flex rounded-lg border border-border overflow-hidden">
           <button
             onClick={() => setGroupBy("date")}
@@ -484,7 +547,6 @@ export function SubjectNotes() {
         <div className="space-y-8">
           {sortedGroups.map(([groupKey, groupNotes]) => (
             <div key={groupKey}>
-              {/* Group header */}
               <div className="flex items-center gap-3 mb-3">
                 {groupBy === "subject" ? (
                   <>
@@ -499,7 +561,6 @@ export function SubjectNotes() {
                 <span className="text-xs text-muted-foreground">{groupNotes.length}</span>
               </div>
 
-              {/* Notes grid */}
               <div className="grid gap-3 sm:grid-cols-2">
                 {groupNotes.map(note => {
                   const preview = stripHtml(note.content)
@@ -509,7 +570,6 @@ export function SubjectNotes() {
                       style={{ borderLeft: `3px solid ${note.subjectColor}` }}
                       onClick={() => { setEditing(note); setIsNew(false); setSaved(true) }}
                     >
-                      {/* Delete btn */}
                       <button
                         className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 p-1 rounded text-muted-foreground hover:text-destructive transition-all"
                         onClick={e => { e.stopPropagation(); deleteNote(note.id) }}
