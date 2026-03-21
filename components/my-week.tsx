@@ -277,11 +277,7 @@ export function MyWeek() {
             return (
               <button
                 key={day.date}
-                onClick={() => {
-                  setSelectedDate(prev => prev === day.date ? "" : day.date)
-                  setExpandedId(null)
-                  setEditDraft(null)
-                }}
+                onClick={() => { setSelectedDate(day.date); setExpandedId(null); setEditDraft(null) }}
                 className={`
                   text-center rounded-lg border p-2.5 transition-all cursor-pointer
                   ${isSelected
@@ -330,16 +326,23 @@ export function MyWeek() {
         {/* ── Day detail panel ── */}
         {selectedDate && selectedDay && (
           <div className="rounded-lg border border-border/50 bg-secondary/20 p-4">
-            <div className="flex items-center justify-between mb-3">
+            <button
+              className="flex items-center justify-between w-full text-left cursor-pointer group"
+              onClick={() => setSelectedDate("")}
+            >
               <p className="text-sm font-medium capitalize">
                 {formatDayFull(new Date(selectedDay.date + "T12:00:00"))}
               </p>
-              {selectedDay.isToday && (
-                <Badge variant="secondary" className="text-[10px] bg-primary/10 text-primary border-0">
-                  Hoy
-                </Badge>
-              )}
-            </div>
+              <div className="flex items-center gap-1.5">
+                {selectedDay.isToday && (
+                  <Badge variant="secondary" className="text-[10px] bg-primary/10 text-primary border-0">
+                    Hoy
+                  </Badge>
+                )}
+                <ChevronUp className="h-4 w-4 text-muted-foreground/50 group-hover:text-muted-foreground transition-colors" />
+              </div>
+            </button>
+            <div className="mt-3" />
 
             {loading ? (
               <div className="flex items-center justify-center py-4">
