@@ -85,7 +85,7 @@ export function ExamDialog({ open, onOpenChange, onSave, exam }: ExamDialogProps
       type,
       location: location || undefined,
       notes: notes || undefined,
-      topics: topics.length > 0 ? topics : undefined,
+      topics: topics,
     })
   }
 
