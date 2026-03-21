@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { Plus, BookOpen, Clock, FolderOpen, Zap } from "lucide-react"
+import { Plus, BookOpen, FolderOpen, Zap } from "lucide-react"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 import { DateInput } from "@/components/ui/date-input"
@@ -22,10 +22,8 @@ export function QuickActions() {
   const [subjects, setSubjects] = useState<Subject[]>([])
   const [taskOpen, setTaskOpen] = useState(false)
   const [examOpen, setExamOpen] = useState(false)
-  const [studyOpen, setStudyOpen] = useState(false)
   const [newTask, setNewTask] = useState({ title: "", subject: "", priority: "medium" as "high" | "medium" | "low", due_date: "" })
   const [newExam, setNewExam] = useState({ subject: "", date: "", topics: "" })
-  const [newStudy, setNewStudy] = useState({ duration: "", subject: "" })
   const [saving, setSaving] = useState(false)
   const supabase = createClient()
 
@@ -81,22 +79,6 @@ export function QuickActions() {
     setSaving(false)
   }
 
-  const addStudySession = async () => {
-    if (!newStudy.duration) return
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    setSaving(true)
-    await supabase.from("study_sessions").insert({
-      user_id: user.id,
-      duration_minutes: parseInt(newStudy.duration),
-      subject: newStudy.subject || null,
-      date: new Date().toISOString().split("T")[0],
-    })
-    setNewStudy({ duration: "", subject: "" })
-    setStudyOpen(false)
-    setSaving(false)
-  }
-
   return (
     <>
       <Card className="border-border/50 shadow-sm">
@@ -126,15 +108,6 @@ export function QuickActions() {
           >
             <BookOpen className="h-4 w-4" />
             Agregar Examen
-          </Button>
-          <Button
-            variant="outline"
-            className="w-full justify-start gap-2 h-9 text-sm"
-            size="sm"
-            onClick={() => setStudyOpen(true)}
-          >
-            <Clock className="h-4 w-4" />
-            Registrar Estudio
           </Button>
           <Link href="/subjects" className="block">
             <Button
@@ -264,48 +237,6 @@ export function QuickActions() {
         </DialogContent>
       </Dialog>
 
-      {/* Log Study Session Dialog */}
-      <Dialog open={studyOpen} onOpenChange={setStudyOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Registrar Sesión de Estudio</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 pt-2">
-            <div className="grid gap-2">
-              <Label>Duración (minutos)</Label>
-              <Input
-                type="number"
-                min="1"
-                placeholder="Ej: 60"
-                value={newStudy.duration}
-                onChange={(e) => setNewStudy({ ...newStudy, duration: e.target.value })}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label>Materia (opcional)</Label>
-              <Select value={newStudy.subject} onValueChange={(v) => setNewStudy({ ...newStudy, subject: v })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccioná una materia" />
-                </SelectTrigger>
-                <SelectContent>
-                  {subjects.map((s) => (
-                    <SelectItem key={s.id} value={s.name}>
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: s.color }} />
-                        {s.name}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setStudyOpen(false)}>Cancelar</Button>
-            <Button onClick={addStudySession} disabled={saving}>Registrar</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </>
   )
 }
