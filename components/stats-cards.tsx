@@ -1,135 +1,166 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Card, CardContent } from "@/components/ui/card"
-import { CalendarDays, CheckSquare, Clock, BookOpen } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
+import { BookOpen, CalendarDays, ClipboardList } from "lucide-react"
+import { format, parseISO, isToday, isTomorrow, differenceInDays } from "date-fns"
+import { es } from "date-fns/locale"
 
-interface StatsData {
-  upcomingExams: number
-  pendingTasks: number
-  studyHours: number
-  subjects: number
+interface UpcomingEvent {
+  id: string
+  title: string
+  type: "exam" | "task"
+  date: string
+}
+
+function formatRelativeDate(dateStr: string) {
+  const date = parseISO(dateStr)
+  if (isToday(date)) return "Hoy"
+  if (isTomorrow(date)) return "Mañana"
+  const diff = differenceInDays(date, new Date())
+  if (diff <= 6) return `En ${diff} días`
+  return format(date, "d MMM", { locale: es })
+}
+
+function EventRow({ event }: { event: UpcomingEvent }) {
+  const isExam = event.type === "exam"
+  return (
+    <div className="flex items-center gap-3 py-2.5 group">
+      <div className={`shrink-0 flex items-center justify-center w-8 h-8 rounded-xl transition-colors ${
+        isExam
+          ? "bg-sky-500/10 text-sky-500"
+          : "bg-amber-500/10 text-amber-500"
+      }`}>
+        {isExam
+          ? <CalendarDays className="w-4 h-4" />
+          : <ClipboardList className="w-4 h-4" />}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-foreground truncate leading-tight">{event.title}</p>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          {isExam ? "Examen" : "Tarea"}
+        </p>
+      </div>
+      <span className={`shrink-0 text-xs font-medium px-2 py-0.5 rounded-full ${
+        isExam
+          ? "bg-sky-500/10 text-sky-500"
+          : "bg-amber-500/10 text-amber-500"
+      }`}>
+        {formatRelativeDate(event.date)}
+      </span>
+    </div>
+  )
 }
 
 export function StatsCards() {
-  const [stats, setStats] = useState<StatsData>({
-    upcomingExams: 0,
-    pendingTasks: 0,
-    studyHours: 0,
-    subjects: 0,
-  })
+  const [subjects, setSubjects] = useState<number | null>(null)
+  const [events, setEvents] = useState<UpcomingEvent[]>([])
   const [loading, setLoading] = useState(true)
   const supabase = createClient()
 
-  useEffect(() => {
-    loadStats()
-  }, [])
+  useEffect(() => { load() }, [])
 
-  const loadStats = async () => {
+  async function load() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
-    const { count: examsCount } = await supabase
-      .from("exams")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", user.id)
-      .gte("date", new Date().toISOString().split("T")[0])
+    const today = new Date().toISOString().split("T")[0]
 
-    const { count: tasksCount } = await supabase
-      .from("tasks")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", user.id)
-      .eq("completed", false)
+    const [{ count: subjectsCount }, { data: exams }, { data: tasks }] = await Promise.all([
+      supabase
+        .from("subjects")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id),
+      supabase
+        .from("exams")
+        .select("id, subject, date")
+        .eq("user_id", user.id)
+        .gte("date", today)
+        .order("date", { ascending: true })
+        .limit(5),
+      supabase
+        .from("tasks")
+        .select("id, title, due_date")
+        .eq("user_id", user.id)
+        .eq("completed", false)
+        .not("due_date", "is", null)
+        .gte("due_date", today)
+        .order("due_date", { ascending: true })
+        .limit(5),
+    ])
 
-    const weekAgo = new Date()
-    weekAgo.setDate(weekAgo.getDate() - 7)
-    const { data: sessions } = await supabase
-      .from("study_sessions")
-      .select("duration_minutes")
-      .eq("user_id", user.id)
-      .gte("date", weekAgo.toISOString().split("T")[0])
+    const combined: UpcomingEvent[] = [
+      ...(exams ?? []).map((e) => ({
+        id: e.id,
+        title: e.subject,
+        type: "exam" as const,
+        date: e.date,
+      })),
+      ...(tasks ?? []).map((t) => ({
+        id: t.id,
+        title: t.title,
+        type: "task" as const,
+        date: t.due_date,
+      })),
+    ]
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .slice(0, 2)
 
-    const totalMinutes = sessions?.reduce((acc, s) => acc + (s.duration_minutes || 0), 0) || 0
-    const studyHours = Math.round((totalMinutes / 60) * 10) / 10
-
-    const { count: subjectsCount } = await supabase
-      .from("subjects")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", user.id)
-
-    setStats({
-      upcomingExams: examsCount || 0,
-      pendingTasks: tasksCount || 0,
-      studyHours,
-      subjects: subjectsCount || 0,
-    })
+    setSubjects(subjectsCount ?? 0)
+    setEvents(combined)
     setLoading(false)
   }
 
-  const cards = [
-    {
-      title: "Examenes Proximos",
-      value: loading ? "-" : stats.upcomingExams,
-      subtitle: "Por rendir",
-      icon: CalendarDays,
-      gradient: "from-sky-500/20 to-sky-500/5 dark:from-sky-500/10 dark:to-sky-500/5",
-      iconBg: "bg-sky-500/15 dark:bg-sky-500/20",
-      iconColor: "text-sky-600 dark:text-sky-400",
-    },
-    {
-      title: "Tareas Pendientes",
-      value: loading ? "-" : stats.pendingTasks,
-      subtitle: "Por completar",
-      icon: CheckSquare,
-      gradient: "from-amber-500/20 to-amber-500/5 dark:from-amber-500/10 dark:to-amber-500/5",
-      iconBg: "bg-amber-500/15 dark:bg-amber-500/20",
-      iconColor: "text-amber-600 dark:text-amber-400",
-    },
-    {
-      title: "Horas de Estudio",
-      value: loading ? "-" : stats.studyHours,
-      subtitle: "Esta semana",
-      icon: Clock,
-      gradient: "from-emerald-500/20 to-emerald-500/5 dark:from-emerald-500/10 dark:to-emerald-500/5",
-      iconBg: "bg-emerald-500/15 dark:bg-emerald-500/20",
-      iconColor: "text-emerald-600 dark:text-emerald-400",
-    },
-    {
-      title: "Materias",
-      value: loading ? "-" : stats.subjects,
-      subtitle: "Inscripto",
-      icon: BookOpen,
-      gradient: "from-violet-500/20 to-violet-500/5 dark:from-violet-500/10 dark:to-violet-500/5",
-      iconBg: "bg-violet-500/15 dark:bg-violet-500/20",
-      iconColor: "text-violet-600 dark:text-violet-400",
-    },
-  ]
-
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-      {cards.map((card) => (
-        <Card 
-          key={card.title} 
-          className="relative overflow-hidden border-border/50 bg-card hover:shadow-lg transition-shadow duration-300"
-        >
-          {/* Gradient background */}
-          <div className={`absolute inset-0 bg-gradient-to-br ${card.gradient} pointer-events-none`} />
-          
-          <CardContent className="relative p-4">
-            <div className="flex items-start justify-between">
-              <div className="space-y-1">
-                <p className="text-xs font-medium text-muted-foreground">{card.title}</p>
-                <p className="text-2xl font-bold text-foreground tracking-tight">{card.value}</p>
-                <p className="text-xs text-muted-foreground">{card.subtitle}</p>
-              </div>
-              <div className={`p-2.5 rounded-xl ${card.iconBg}`}>
-                <card.icon className={`h-5 w-5 ${card.iconColor}`} />
-              </div>
+    <div className="flex justify-center">
+      <div className="w-full max-w-3xl grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-4 items-stretch">
+
+        {/* Upcoming events card */}
+        <div className="rounded-2xl border border-border/50 bg-card shadow-sm p-5">
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">
+            Próximos eventos
+          </p>
+
+          {loading ? (
+            <div className="space-y-3">
+              {[0, 1].map((i) => (
+                <div key={i} className="flex items-center gap-3 py-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-muted animate-pulse" />
+                  <div className="flex-1 space-y-1.5">
+                    <div className="h-3 w-3/4 rounded bg-muted animate-pulse" />
+                    <div className="h-2.5 w-1/4 rounded bg-muted animate-pulse" />
+                  </div>
+                </div>
+              ))}
             </div>
-          </CardContent>
-        </Card>
-      ))}
+          ) : events.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-4 text-center">
+              <CalendarDays className="w-7 h-7 text-muted-foreground/30 mb-2" />
+              <p className="text-sm text-muted-foreground">Sin eventos próximos</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-border/40">
+              {events.map((event) => (
+                <EventRow key={event.id} event={event} />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Subjects card */}
+        <div className="rounded-2xl border border-border/50 bg-card shadow-sm p-5 flex flex-col items-center justify-center gap-2 sm:min-w-[140px]">
+          <div className="w-10 h-10 rounded-xl bg-violet-500/10 flex items-center justify-center">
+            <BookOpen className="w-5 h-5 text-violet-500" />
+          </div>
+          <p className="text-4xl font-bold tracking-tight text-foreground">
+            {loading ? <span className="text-muted-foreground text-2xl">—</span> : subjects}
+          </p>
+          <p className="text-xs font-medium text-muted-foreground text-center leading-tight">
+            Materias<br />inscripto
+          </p>
+        </div>
+
+      </div>
     </div>
   )
 }
