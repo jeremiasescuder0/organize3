@@ -75,7 +75,7 @@ function formatDayFull(date: Date): string {
   return date.toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" })
 }
 
-function getTemporalLabel(dateStr: string): string {
+function getTemporalLabel(dateStr: string, type: "task" | "exam"): string {
   const target = new Date(dateStr + "T12:00:00")
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -84,6 +84,7 @@ function getTemporalLabel(dateStr: string): string {
   if (diff < 0) return "Vencido"
   if (diff === 0) return "Hoy"
   if (diff === 1) return "Mañana"
+  if (type === "task") return `Faltan ${diff} días`
   return `En ${diff} días`
 }
 
@@ -381,7 +382,7 @@ export function MyWeek() {
                           </div>
                         </div>
                         <Badge variant="secondary" className={`text-[10px] shrink-0 ${getTemporalColor(item.date)}`}>
-                          {getTemporalLabel(item.date)}
+                          {getTemporalLabel(item.date, item.type)}
                         </Badge>
                         {isExam && (
                           isExpanded
