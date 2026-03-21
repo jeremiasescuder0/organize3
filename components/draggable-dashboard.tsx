@@ -22,27 +22,27 @@ import {
 import { CSS } from "@dnd-kit/utilities"
 import { TodayFocus } from "@/components/today-focus"
 import { ExamFocus } from "@/components/exam-focus"
-import { MyWeek } from "@/components/my-week"
+import { HomeCalendar } from "@/components/home-calendar"
 import { SmartRecommendations } from "@/components/smart-recommendations"
 import { QuickActions } from "@/components/quick-actions"
 
-type ModuleId = "today" | "exams" | "week" | "recommendations" | "actions"
+type ModuleId = "today" | "exams" | "calendar" | "recommendations" | "actions"
 type ColumnId = "left" | "right"
 type Layout = { left: ModuleId[]; right: ModuleId[] }
 
 const MODULE_DEFS: { id: ModuleId; label: string; component: React.ReactNode }[] = [
   { id: "today",           label: "Enfoque",           component: <TodayFocus /> },
   { id: "exams",           label: "Exámenes",          component: <ExamFocus /> },
-  { id: "week",            label: "Mi Semana",         component: <MyWeek /> },
+  { id: "calendar",        label: "Calendario",        component: <HomeCalendar /> },
   { id: "recommendations", label: "Recomendaciones",   component: <SmartRecommendations /> },
   { id: "actions",         label: "Acciones Rápidas",  component: <QuickActions /> },
 ]
 
-const STORAGE_KEY = "dashboard_layout_v4"
+const STORAGE_KEY = "dashboard_layout_v5"
 
 function getDefaultLayout(): Layout {
   return {
-    left: ["today", "exams", "week"],
+    left: ["today", "exams", "calendar"],
     right: ["recommendations", "actions"],
   }
 }
