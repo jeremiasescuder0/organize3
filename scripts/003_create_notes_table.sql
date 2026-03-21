@@ -1,5 +1,8 @@
+-- Drop and recreate cleanly
+drop table if exists public.notes cascade;
+
 -- Create notes table
-create table if not exists public.notes (
+create table public.notes (
   id text primary key,
   user_id uuid not null references auth.users(id) on delete cascade,
   subject_id text,
@@ -34,5 +37,5 @@ create policy "Users can delete their own notes"
 
 -- Indexes
 create index if not exists notes_user_id_idx on public.notes(user_id);
-create index if not exists notes_date_idx on public.notes(date);
+create index if not exists notes_date_idx on public.notes("date");
 create index if not exists notes_subject_id_idx on public.notes(subject_id);

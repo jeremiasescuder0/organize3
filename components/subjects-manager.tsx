@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dialog"
 import { FolderOpen, Plus, Trash2, Search, Check, BookOpen } from "lucide-react"
 
-interface Subject {
+export interface Subject {
   id: string
   name: string
   color: string
