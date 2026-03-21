@@ -18,7 +18,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { X } from "lucide-react"
 import { useState, useEffect } from "react"
-import type { Exam } from "./upcoming-exams"
+export interface Exam {
+  id: string
+  subject: string
+  date: string
+  time?: string
+  type?: string
+  location?: string
+  notes?: string
+  topics: string[]
+}
 
 interface ExamDialogProps {
   open: boolean
