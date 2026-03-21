@@ -277,7 +277,11 @@ export function MyWeek() {
             return (
               <button
                 key={day.date}
-                onClick={() => { setSelectedDate(day.date); setExpandedId(null); setEditDraft(null) }}
+                onClick={() => {
+                  setSelectedDate(prev => prev === day.date ? "" : day.date)
+                  setExpandedId(null)
+                  setEditDraft(null)
+                }}
                 className={`
                   text-center rounded-lg border p-2.5 transition-all cursor-pointer
                   ${isSelected
@@ -324,7 +328,7 @@ export function MyWeek() {
         </div>
 
         {/* ── Day detail panel ── */}
-        {selectedDay && (
+        {selectedDate && selectedDay && (
           <div className="rounded-lg border border-border/50 bg-secondary/20 p-4">
             <div className="flex items-center justify-between mb-3">
               <p className="text-sm font-medium capitalize">
