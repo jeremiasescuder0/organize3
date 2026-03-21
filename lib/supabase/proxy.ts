@@ -41,18 +41,23 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  const publicPaths = ['/auth/login', '/auth/sign-up', '/auth/sign-up-success', '/auth/error', '/terms']
-  const isPublicPath = publicPaths.some(path => request.nextUrl.pathname.startsWith(path))
-  
-  if (!user && !isPublicPath) {
+  const authPaths = ['/auth/login', '/auth/sign-up', '/auth/sign-up-success', '/auth/error']
+  const openPaths = ['/terms']
+  const isAuthPath = authPaths.some(path => request.nextUrl.pathname.startsWith(path))
+  const isOpenPath = openPaths.some(path => request.nextUrl.pathname.startsWith(path))
+
+  // Open paths are accessible to everyone
+  if (isOpenPath) return supabaseResponse
+
+  if (!user && !isAuthPath) {
     // no user, redirect to the login page
     const url = request.nextUrl.clone()
     url.pathname = '/auth/login'
     return NextResponse.redirect(url)
   }
-  
+
   // If user is logged in and tries to access auth pages, redirect to home
-  if (user && isPublicPath) {
+  if (user && isAuthPath) {
     const url = request.nextUrl.clone()
     url.pathname = '/'
     return NextResponse.redirect(url)
