@@ -41,8 +41,8 @@ export function ExamDialog({ open, onOpenChange, onSave, exam }: ExamDialogProps
     if (exam) {
       setSubject(exam.subject)
       setDate(exam.date)
-      setTime(exam.time)
-      setType(exam.type)
+      setTime(exam.time ?? "")
+      setType(exam.type ?? "Parcial")
       setLocation(exam.location || "")
       setNotes(exam.notes || "")
       setTopics(exam.topics || [])

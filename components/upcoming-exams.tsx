@@ -17,6 +17,7 @@ export interface Exam {
   subject: string
   date: string
   time?: string
+  type?: string
   location?: string
   notes?: string
   topics: string[]
