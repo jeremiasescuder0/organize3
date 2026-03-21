@@ -12,7 +12,7 @@ import { parseDateLocal, formatDateLocal } from "@/lib/date-utils"
 import { createClient } from "@/lib/supabase/client"
 import { DateInput } from "@/components/ui/date-input"
 
-interface Exam {
+export interface Exam {
   id: string
   subject: string
   date: string
