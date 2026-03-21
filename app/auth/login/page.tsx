@@ -95,7 +95,7 @@ export default function LoginPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="password">Contrasena</Label>
+                  <Label htmlFor="password">Contraseña</Label>
                   <Input
                     id="password"
                     type="password"

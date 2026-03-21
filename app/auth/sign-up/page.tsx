@@ -25,13 +25,13 @@ export default function SignUpPage() {
     setError(null)
 
     if (password !== repeatPassword) {
-      setError('Las contrasenas no coinciden')
+      setError('Las contraseñas no coinciden')
       setIsLoading(false)
       return
     }
 
     if (password.length < 6) {
-      setError('La contrasena debe tener al menos 6 caracteres')
+      setError('La contraseña debe tener al menos 6 caracteres')
       setIsLoading(false)
       return
     }
@@ -107,7 +107,7 @@ export default function SignUpPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="password">Contrasena</Label>
+                  <Label htmlFor="password">Contraseña</Label>
                   <Input
                     id="password"
                     type="password"
@@ -119,7 +119,7 @@ export default function SignUpPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="repeat-password">Confirmar Contrasena</Label>
+                  <Label htmlFor="repeat-password">Confirmar Contraseña</Label>
                   <Input
                     id="repeat-password"
                     type="password"
