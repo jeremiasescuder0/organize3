@@ -15,24 +15,39 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [attempts, setAttempts] = useState(0)
+  const [lockedUntil, setLockedUntil] = useState<number | null>(null)
   const router = useRouter()
+
+  const isLocked = lockedUntil !== null && Date.now() < lockedUntil
+  const lockSecondsLeft = isLocked ? Math.ceil((lockedUntil! - Date.now()) / 1000) : 0
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (isLocked) return
+
     const supabase = createClient()
     setIsLoading(true)
     setError(null)
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
+      const { error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) throw error
+      setAttempts(0)
       router.push('/')
       router.refresh()
     } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : 'Ocurrio un error')
+      const next = attempts + 1
+      setAttempts(next)
+      // After 5 failed attempts lock for 60 seconds
+      if (next >= 5) {
+        setLockedUntil(Date.now() + 60_000)
+        setAttempts(0)
+        setError('Demasiados intentos fallidos. Esperá 60 segundos.')
+      } else {
+        const msg = error instanceof Error ? error.message : 'Ocurrió un error'
+        setError(`${msg} (${next}/5 intentos)`)
+      }
     } finally {
       setIsLoading(false)
     }
@@ -97,7 +112,15 @@ export default function LoginPage() {
                   </div>
                 )}
                 
-                <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
+                {isLocked && (
+                  <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                    <p className="text-sm text-amber-600 dark:text-amber-400">
+                      Cuenta bloqueada temporalmente. Intentá en {lockSecondsLeft}s.
+                    </p>
+                  </div>
+                )}
+
+                <Button type="submit" className="w-full" size="lg" disabled={isLoading || isLocked}>
                   {isLoading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />

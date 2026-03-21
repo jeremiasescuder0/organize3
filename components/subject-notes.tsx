@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useState, useEffect, useRef, useCallback, useMemo } from "react"
+import DOMPurify from "dompurify"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -59,6 +60,18 @@ function groupOrder(label: string) {
   return order[label] ?? 99
 }
 
+const PURIFY_CONFIG: DOMPurify.Config = {
+  ALLOWED_TAGS: ['p','br','b','strong','i','em','u','s','strike','h1','h2','ul','ol','li','a','span','div'],
+  ALLOWED_ATTR: ['href','target','rel','style'],
+  ALLOW_DATA_ATTR: false,
+  FORCE_BODY: true,
+}
+
+function sanitize(html: string): string {
+  if (typeof window === "undefined") return html
+  return DOMPurify.sanitize(html, PURIFY_CONFIG) as string
+}
+
 function dbRowToNote(row: any): Note {
   return {
     id: row.id,
@@ -67,7 +80,7 @@ function dbRowToNote(row: any): Note {
     subjectColor: row.subject_color ?? "#6366f1",
     title: row.title ?? "",
     date: row.date,
-    content: row.content ?? "",
+    content: sanitize(row.content ?? ""),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -168,7 +181,7 @@ export function SubjectNotes() {
   // ── Save to Supabase ──────────────────────────────────
   const saveNote = useCallback(async () => {
     if (!editing || !userId || !editorRef.current) return
-    const content = editorRef.current.innerHTML
+    const content = sanitize(editorRef.current.innerHTML)
     const now = new Date().toISOString()
     const payload = {
       id: editing.id,
