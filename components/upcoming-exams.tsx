@@ -1,16 +1,18 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { BookOpen, Plus, Trash2, ChevronDown, ChevronUp, Save } from "lucide-react"
+import { Zap, Plus, BookOpen, ClipboardList, Trash2, ChevronDown, ChevronUp, Save } from "lucide-react"
 import { parseDateLocal, formatDateLocal } from "@/lib/date-utils"
 import { createClient } from "@/lib/supabase/client"
 import { DateInput } from "@/components/ui/date-input"
+
+// ── Types ────────────────────────────────────────────────
 
 export interface Exam {
   id: string
@@ -23,13 +25,47 @@ export interface Exam {
   topics: string[]
 }
 
+interface UpcomingEvent {
+  id: string
+  title: string
+  type: "task" | "exam"
+  subject?: string
+  date: string
+  time?: string
+}
+
 interface Subject {
   id: string
   name: string
   color: string
 }
 
+// ── Helpers ──────────────────────────────────────────────
+
+function getDaysUntil(dateStr: string): number {
+  const target = parseDateLocal(dateStr)
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  return Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+}
+
+function getTemporalLabel(days: number): string {
+  if (days < 0) return "Vencido"
+  if (days === 0) return "Hoy"
+  if (days === 1) return "Mañana"
+  return `En ${days} días`
+}
+
+function getTemporalColor(days: number): string {
+  if (days <= 1) return "bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-400"
+  if (days <= 3) return "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400"
+  return "bg-secondary text-muted-foreground"
+}
+
+// ── Component ────────────────────────────────────────────
+
 export function UpcomingExams() {
+  const [events, setEvents] = useState<UpcomingEvent[]>([])
   const [exams, setExams] = useState<Exam[]>([])
   const [subjects, setSubjects] = useState<Subject[]>([])
   const [loading, setLoading] = useState(true)
@@ -44,33 +80,77 @@ export function UpcomingExams() {
   useEffect(() => { loadData() }, [])
 
   const loadData = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    const [examsResult, subjectsResult] = await Promise.all([
-      supabase.from("exams").select("*").eq("user_id", user.id)
-        .gte("date", new Date().toISOString().split("T")[0])
-        .order("date", { ascending: true }).limit(4),
-      supabase.from("subjects").select("*").eq("user_id", user.id).order("name"),
+    const todayStr = new Date().toISOString().split("T")[0]
+
+    const [tasksResult, examsResult, subjectsResult] = await Promise.all([
+      supabase
+        .from("tasks")
+        .select("id, title, subject, due_date")
+        .eq("completed", false)
+        .gte("due_date", todayStr)
+        .order("due_date", { ascending: true })
+        .limit(10),
+      supabase
+        .from("exams")
+        .select("*")
+        .gte("date", todayStr)
+        .order("date", { ascending: true })
+        .limit(10),
+      supabase
+        .from("subjects")
+        .select("*")
+        .order("name"),
     ])
+
+    // Build unified event list
+    const all: UpcomingEvent[] = []
+
+    tasksResult.data?.forEach(t => {
+      if (t.due_date) {
+        all.push({
+          id: t.id,
+          title: t.title,
+          type: "task",
+          subject: t.subject || undefined,
+          date: t.due_date,
+        })
+      }
+    })
+
+    examsResult.data?.forEach(e => {
+      all.push({
+        id: e.id,
+        title: e.subject,
+        type: "exam",
+        subject: e.subject || undefined,
+        date: e.date,
+        time: e.time || undefined,
+      })
+    })
+
+    // Sort by date, take first 3
+    all.sort((a, b) => a.date.localeCompare(b.date))
+
+    setEvents(all.slice(0, 3))
     if (examsResult.data) setExams(examsResult.data)
     if (subjectsResult.data) setSubjects(subjectsResult.data)
     setLoading(false)
   }
 
+  // ── Exam CRUD (preserved) ──────────────────────────────
+
   const addExam = async () => {
     if (!newExam.subject || !newExam.date) return
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
     const topicsArray = newExam.topics
       ? newExam.topics.split(",").map(t => t.trim()).filter(Boolean)
       : []
     const { data, error } = await supabase.from("exams")
-      .insert({ user_id: user.id, subject: newExam.subject, date: newExam.date, topics: topicsArray })
+      .insert({ subject: newExam.subject, date: newExam.date, topics: topicsArray })
       .select().single()
     if (!error && data) {
-      setExams([...exams, data].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()))
       setNewExam({ subject: "", date: "", topics: "" })
       setDialogOpen(false)
+      loadData()
     }
   }
 
@@ -78,17 +158,15 @@ export function UpcomingExams() {
     if (!editDraft) return
     setSaving(true)
     const topicsArray = editTopics.split(",").map(t => t.trim()).filter(Boolean)
-    const updated = { ...editDraft, topics: topicsArray }
     const { error } = await supabase.from("exams").update({
-      subject: updated.subject,
-      date: updated.date,
-      topics: updated.topics,
-    }).eq("id", updated.id)
+      subject: editDraft.subject,
+      date: editDraft.date,
+      topics: topicsArray,
+    }).eq("id", editDraft.id)
     if (!error) {
-      setExams(exams.map(e => e.id === updated.id ? updated : e)
-        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()))
       setExpandedId(null)
       setEditDraft(null)
+      loadData()
     }
     setSaving(false)
   }
@@ -96,41 +174,38 @@ export function UpcomingExams() {
   const deleteExam = async (id: string) => {
     const { error } = await supabase.from("exams").delete().eq("id", id)
     if (!error) {
-      setExams(exams.filter(e => e.id !== id))
       setExpandedId(null)
+      loadData()
     }
   }
 
-  const toggleExpand = (exam: Exam) => {
-    if (expandedId === exam.id) {
+  const toggleExpand = (event: UpcomingEvent) => {
+    if (event.type !== "exam") return
+    if (expandedId === event.id) {
       setExpandedId(null)
       setEditDraft(null)
     } else {
-      setExpandedId(exam.id)
-      setEditDraft({ ...exam })
-      setEditTopics((exam.topics || []).join(", "))
+      const exam = exams.find(e => e.id === event.id)
+      if (exam) {
+        setExpandedId(event.id)
+        setEditDraft({ ...exam })
+        setEditTopics((exam.topics || []).join(", "))
+      }
     }
   }
 
-  const getDaysUntil = (dateStr: string) => {
-    const examDate = parseDateLocal(dateStr)
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    return Math.ceil((examDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-  }
-
-  const getUrgencyColor = (days: number) => {
-    if (days <= 3) return "bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-400"
-    if (days <= 7) return "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400"
-    return "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400"
-  }
+  // ── Render ─────────────────────────────────────────────
 
   if (loading) return (
     <Card className="border-border/50 shadow-sm">
-      <CardHeader className="pb-3"><CardTitle className="text-base font-semibold">Proximos Examenes</CardTitle></CardHeader>
-      <CardContent><div className="flex items-center justify-center py-8">
-        <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-      </div></CardContent>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base font-semibold">Próximos Eventos</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-center justify-center py-8">
+          <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        </div>
+      </CardContent>
     </Card>
   )
 
@@ -140,9 +215,9 @@ export function UpcomingExams() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="p-1.5 rounded-lg bg-primary/10">
-              <BookOpen className="h-4 w-4 text-primary" />
+              <Zap className="h-4 w-4 text-primary" />
             </div>
-            <CardTitle className="text-base font-semibold">Proximos Examenes</CardTitle>
+            <CardTitle className="text-base font-semibold">Próximos Eventos</CardTitle>
           </div>
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
@@ -156,7 +231,7 @@ export function UpcomingExams() {
                 <div>
                   <label className="text-sm font-medium mb-1.5 block">Materia</label>
                   <Select value={newExam.subject} onValueChange={v => setNewExam({ ...newExam, subject: v })}>
-                    <SelectTrigger><SelectValue placeholder="Selecciona una materia" /></SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder="Seleccioná una materia" /></SelectTrigger>
                     <SelectContent>
                       {subjects.map(s => (
                         <SelectItem key={s.id} value={s.name}>
@@ -178,7 +253,7 @@ export function UpcomingExams() {
                 </div>
                 <div>
                   <label className="text-sm font-medium mb-1.5 block">Temas (separados por coma)</label>
-                  <Input placeholder="Ej: Capitulo 1, Capitulo 2, Ejercicios"
+                  <Input placeholder="Ej: Capítulo 1, Capítulo 2, Ejercicios"
                     value={newExam.topics} onChange={e => setNewExam({ ...newExam, topics: e.target.value })} />
                 </div>
                 <Button onClick={addExam} className="w-full">Agregar Examen</Button>
@@ -189,32 +264,61 @@ export function UpcomingExams() {
       </CardHeader>
 
       <CardContent className="space-y-2">
-        {exams.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-4">No hay examenes programados.</p>
-        ) : exams.map(exam => {
-          const daysUntil = getDaysUntil(exam.date)
-          const isExpanded = expandedId === exam.id
+        {events.length === 0 ? (
+          <p className="text-sm text-muted-foreground/60 text-center py-4">
+            No tenés eventos próximos
+          </p>
+        ) : events.map(event => {
+          const days = getDaysUntil(event.date)
+          const isExpanded = expandedId === event.id
+          const isExam = event.type === "exam"
+
           return (
-            <div key={exam.id}
+            <div
+              key={`${event.type}-${event.id}`}
               className={`rounded-lg border transition-all ${
                 isExpanded ? "border-primary/50 bg-primary/5" : "bg-secondary/30 border-border/50 hover:border-border"
               }`}
             >
-              {/* Row */}
-              <div className="flex items-center gap-3 p-3 cursor-pointer" onClick={() => toggleExpand(exam)}>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{exam.subject}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">{formatDateLocal(exam.date)}</p>
+              <div
+                className={`flex items-center gap-3 p-3 ${isExam ? "cursor-pointer" : ""}`}
+                onClick={() => isExam && toggleExpand(event)}
+              >
+                <div className={`p-1.5 rounded ${
+                  isExam
+                    ? "bg-amber-100 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400"
+                    : "bg-blue-100 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400"
+                }`}>
+                  {isExam
+                    ? <BookOpen className="h-3.5 w-3.5" />
+                    : <ClipboardList className="h-3.5 w-3.5" />
+                  }
                 </div>
-                <Badge variant="secondary" className={`text-xs shrink-0 ${getUrgencyColor(daysUntil)}`}>
-                  {daysUntil === 0 ? "Hoy" : daysUntil === 1 ? "Mañana" : `${daysUntil} días`}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{event.title}</p>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    {event.subject && event.type === "task" && (
+                      <span className="text-[11px] text-muted-foreground">{event.subject} ·</span>
+                    )}
+                    <span className="text-[11px] text-muted-foreground">
+                      {isExam ? "examen" : "tarea"}
+                    </span>
+                    {event.time && (
+                      <span className="text-[11px] text-muted-foreground">· {event.time}</span>
+                    )}
+                  </div>
+                </div>
+                <Badge variant="secondary" className={`text-[11px] shrink-0 ${getTemporalColor(days)}`}>
+                  {getTemporalLabel(days)}
                 </Badge>
-                {isExpanded
-                  ? <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
-                  : <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />}
+                {isExam && (
+                  isExpanded
+                    ? <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
+                    : <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                )}
               </div>
 
-              {/* Expanded edit panel */}
+              {/* Expanded edit panel (exams only) */}
               {isExpanded && editDraft && (
                 <div className="px-4 pb-4 space-y-3 border-t border-border/50 pt-3">
                   <div className="grid grid-cols-2 gap-3">
@@ -245,9 +349,8 @@ export function UpcomingExams() {
                   <div className="grid gap-2">
                     <label className="text-xs font-medium text-muted-foreground">Temas (separados por coma)</label>
                     <Input value={editTopics} onChange={e => setEditTopics(e.target.value)}
-                      className="h-8 text-sm" placeholder="Ej: Capitulo 1, Capitulo 2" />
+                      className="h-8 text-sm" placeholder="Ej: Capítulo 1, Capítulo 2" />
                   </div>
-                  {/* Topics preview */}
                   {editTopics.trim() && (
                     <div className="flex flex-wrap gap-1">
                       {editTopics.split(",").map(t => t.trim()).filter(Boolean).map((t, i) => (
@@ -257,7 +360,7 @@ export function UpcomingExams() {
                   )}
                   <div className="flex items-center justify-between pt-1">
                     <Button variant="ghost" size="sm" className="gap-1.5 text-destructive hover:text-destructive h-8"
-                      onClick={() => deleteExam(exam.id)}>
+                      onClick={() => deleteExam(event.id)}>
                       <Trash2 className="h-3.5 w-3.5" />Eliminar
                     </Button>
                     <div className="flex gap-2">

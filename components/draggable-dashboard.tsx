@@ -33,7 +33,7 @@ type Layout = { left: ModuleId[]; right: ModuleId[] }
 const MODULE_DEFS: { id: ModuleId; label: string; component: React.ReactNode }[] = [
   { id: "today",           label: "Enfoque de Hoy",   component: <TodayFocus /> },
   { id: "weekly",          label: "Plan Semanal",      component: <WeeklyPlan /> },
-  { id: "exams",           label: "Próximos Exámenes", component: <UpcomingExams /> },
+  { id: "exams",           label: "Próximos Eventos",  component: <UpcomingExams /> },
   { id: "recommendations", label: "Recomendaciones",   component: <SmartRecommendations /> },
   { id: "actions",         label: "Acciones Rápidas",  component: <QuickActions /> },
 ]

@@ -250,9 +250,9 @@ export function WeeklyPlan() {
                   <p className={`text-[10px] mt-1 leading-tight ${
                     isSelected && day.isToday
                       ? "text-primary-foreground/50"
-                      : "text-muted-foreground/50"
+                      : "text-muted-foreground/40"
                   }`}>
-                    —
+                    Libre
                   </p>
                 )}
               </button>
@@ -277,7 +277,7 @@ export function WeeklyPlan() {
               </p>
             ) : (
               <div className="space-y-2">
-                {selectedDay.items.map(item => (
+                {selectedDay.items.slice(0, 4).map(item => (
                   <div
                     key={item.id}
                     className="flex items-center gap-3 py-1.5"
@@ -294,9 +294,9 @@ export function WeeklyPlan() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm truncate">{item.title}</p>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5">
                         {item.subject && item.type === "task" && (
-                          <span className="text-[11px] text-muted-foreground">{item.subject}</span>
+                          <span className="text-[11px] text-muted-foreground">{item.subject} ·</span>
                         )}
                         <span className={`text-[11px] ${
                           item.type === "exam"
@@ -309,15 +309,23 @@ export function WeeklyPlan() {
                     </div>
                   </div>
                 ))}
+                {selectedDay.items.length > 4 && (
+                  <p className="text-[11px] text-muted-foreground/50 pl-8">
+                    +{selectedDay.items.length - 4} más
+                  </p>
+                )}
               </div>
             )}
           </div>
         )}
 
         {/* Week summary */}
-        {!loading && weekTotal > 0 && (
+        {!loading && (
           <p className="text-xs text-muted-foreground pt-1">
-            {weekTotal} pendiente{weekTotal !== 1 ? "s" : ""} esta semana
+            {weekTotal === 0
+              ? "Semana libre"
+              : `${weekTotal} pendiente${weekTotal !== 1 ? "s" : ""} esta semana`
+            }
           </p>
         )}
       </CardContent>
