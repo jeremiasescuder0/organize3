@@ -1,10 +1,10 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { BookOpen, ClipboardList, CalendarDays } from "lucide-react"
-import { differenceInDays, parseISO, format } from "date-fns"
-import { es } from "date-fns/locale"
+import { differenceInDays, parseISO } from "date-fns"
+import { EVENTS } from "@/lib/events"
 
 interface ExamInfo {
   subject: string
@@ -29,9 +29,7 @@ export function StatsCards() {
   const [loading, setLoading] = useState(true)
   const supabase = createClient()
 
-  useEffect(() => { load() }, [])
-
-  async function load() {
+  const load = useCallback(async () => {
     const today = new Date().toISOString().split("T")[0]
 
     const [{ count: subjectsCount }, { count: tasksCount }, { data: exams }] = await Promise.all([
@@ -62,7 +60,22 @@ export function StatsCards() {
       upcomingExams,
     })
     setLoading(false)
-  }
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  // Auto-refresh when tasks/exams change
+  useEffect(() => {
+    const refresh = () => load()
+    window.addEventListener(EVENTS.TASK_ADDED, refresh)
+    window.addEventListener(EVENTS.TASK_COMPLETED, refresh)
+    window.addEventListener(EVENTS.EXAM_ADDED, refresh)
+    return () => {
+      window.removeEventListener(EVENTS.TASK_ADDED, refresh)
+      window.removeEventListener(EVENTS.TASK_COMPLETED, refresh)
+      window.removeEventListener(EVENTS.EXAM_ADDED, refresh)
+    }
+  }, [load])
 
   const examCount = stats?.upcomingExams.length ?? 0
   const nearest = stats?.upcomingExams[0]
@@ -98,7 +111,7 @@ export function StatsCards() {
         </div>
 
         {/* Upcoming exams */}
-        <div className="rounded-2xl border border-border/50 bg-card shadow-sm p-5 flex flex-col items-center justify-center gap-2">
+        <div className="rounded-2xl border border-border/50 bg-card shadow-sm p-5 flex flex-col items-center justify-center gap-2 overflow-hidden">
           <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
             <CalendarDays className="w-5 h-5 text-amber-500" />
           </div>
@@ -119,8 +132,10 @@ export function StatsCards() {
               <p className="text-xs font-medium text-muted-foreground text-center leading-tight">
                 {examCount === 1 ? "Examen próximo" : "Exámenes próximos"}
               </p>
-              <p className="text-[11px] text-muted-foreground/70 text-center truncate max-w-full">
-                {nearest!.subject} · {formatRelative(nearest!.daysUntil)}
+              <p className="text-[11px] text-muted-foreground/70 text-center w-full leading-snug">
+                {nearest!.subject}
+                <br />
+                {formatRelative(nearest!.daysUntil)}
               </p>
             </>
           )}
