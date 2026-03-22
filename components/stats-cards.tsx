@@ -85,7 +85,7 @@ export function StatsCards() {
       <div className="w-full max-w-3xl grid grid-cols-3 gap-4">
 
         {/* Subjects */}
-        <div className="rounded-2xl border border-border/50 bg-card shadow-sm p-5 flex flex-col items-center justify-center gap-2">
+        <div className="rounded-2xl border border-border/50 bg-card shadow-sm p-5 flex flex-col items-center gap-2">
           <div className="w-10 h-10 rounded-xl bg-violet-500/10 flex items-center justify-center">
             <BookOpen className="w-5 h-5 text-violet-500" />
           </div>
@@ -98,7 +98,7 @@ export function StatsCards() {
         </div>
 
         {/* Pending tasks */}
-        <div className="rounded-2xl border border-border/50 bg-card shadow-sm p-5 flex flex-col items-center justify-center gap-2">
+        <div className="rounded-2xl border border-border/50 bg-card shadow-sm p-5 flex flex-col items-center gap-2">
           <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
             <ClipboardList className="w-5 h-5 text-blue-500" />
           </div>
@@ -111,7 +111,7 @@ export function StatsCards() {
         </div>
 
         {/* Upcoming exams */}
-        <div className="rounded-2xl border border-border/50 bg-card shadow-sm p-5 flex flex-col items-center justify-center gap-2 overflow-hidden">
+        <div className="rounded-2xl border border-border/50 bg-card shadow-sm p-5 flex flex-col items-center gap-2">
           <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
             <CalendarDays className="w-5 h-5 text-amber-500" />
           </div>
