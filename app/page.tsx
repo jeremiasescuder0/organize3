@@ -68,7 +68,7 @@ export default function Home() {
             </TabsTrigger>
             <TabsTrigger value="enfoque" className="gap-2 text-sm">
               <Brain className="h-4 w-4" />
-              Sesión de Enfoque
+              Sesión de Estudio
             </TabsTrigger>
             <TabsTrigger value="notas" className="gap-2 text-sm">
               <StickyNote className="h-4 w-4" />
