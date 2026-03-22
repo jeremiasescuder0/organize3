@@ -1,11 +1,14 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
-import { Sparkles } from "lucide-react"
+import { Textarea } from "@/components/ui/textarea"
+import { Sparkles, Check, X } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
+import { EVENTS } from "@/lib/events"
 
 interface Task {
   id: string
@@ -22,31 +25,85 @@ const priorityColors = {
   low: "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400",
 }
 const priorityLabel = { high: "Alta", medium: "Media", low: "Baja" }
-
 export function TodayFocus() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
+  const [confirmingId, setConfirmingId] = useState<string | null>(null)
+  const [completionNote, setCompletionNote] = useState("")
+  const [fadingIds, setFadingIds] = useState<Set<string>>(new Set())
+  const [enteringIds, setEnteringIds] = useState<Set<string>>(new Set())
   const supabase = createClient()
 
-  useEffect(() => { loadData() }, [])
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
     const { data } = await supabase.from("tasks").select("*").eq("user_id", user.id)
-      .eq("completed", false).order("priority", { ascending: true }).limit(5)
-    if (data) setTasks(data)
+      .eq("completed", false).order("priority", { ascending: true }).limit(10)
+    if (data) {
+      const currentIds = new Set(tasks.map(t => t.id))
+      const newIds = new Set<string>()
+      data.forEach(t => {
+        if (!currentIds.has(t.id)) newIds.add(t.id)
+      })
+      setTasks(data)
+      if (newIds.size > 0 && !loading) {
+        setEnteringIds(newIds)
+        setTimeout(() => setEnteringIds(new Set()), 500)
+      }
+    }
     setLoading(false)
+  }, [])
+
+  useEffect(() => { loadData() }, [loadData])
+
+  // Listen for cross-component events
+  useEffect(() => {
+    const onTaskAdded = () => loadData()
+    window.addEventListener(EVENTS.TASK_ADDED, onTaskAdded)
+    return () => window.removeEventListener(EVENTS.TASK_ADDED, onTaskAdded)
+  }, [loadData])
+
+  const startComplete = (id: string) => {
+    setConfirmingId(id)
+    setCompletionNote("")
   }
 
-  const toggleTask = async (id: string) => {
-    const task = tasks.find(t => t.id === id)
-    if (!task) return
-    const { error } = await supabase.from("tasks").update({ completed: !task.completed }).eq("id", id)
-    if (!error) setTasks(tasks.map(t => t.id === id ? { ...t, completed: !t.completed } : t))
+  const cancelComplete = () => {
+    setConfirmingId(null)
+    setCompletionNote("")
   }
 
-  const completedCount = tasks.filter(t => t.completed).length
+  const confirmComplete = async () => {
+    if (!confirmingId) return
+    const note = completionNote.trim()
+
+    // Save note if provided
+    if (note) {
+      await supabase.from("tasks").update({
+        completed: true,
+        description: note,
+      }).eq("id", confirmingId)
+    } else {
+      await supabase.from("tasks").update({ completed: true }).eq("id", confirmingId)
+    }
+
+    // Start fade-out
+    setFadingIds(prev => new Set(prev).add(confirmingId))
+    setConfirmingId(null)
+    setCompletionNote("")
+
+    // Remove from list after animation
+    setTimeout(() => {
+      setTasks(prev => prev.filter(t => t.id !== confirmingId))
+      setFadingIds(prev => {
+        const next = new Set(prev)
+        next.delete(confirmingId)
+        return next
+      })
+      // Notify other components
+      window.dispatchEvent(new CustomEvent(EVENTS.TASK_COMPLETED))
+    }, 400)
+  }
 
   if (loading) return (
     <Card className="border-border/50 shadow-sm">
@@ -56,6 +113,8 @@ export function TodayFocus() {
       </div></CardContent>
     </Card>
   )
+
+  const activeCount = tasks.filter(t => !fadingIds.has(t.id)).length
 
   return (
     <Card className="border-border/50 shadow-sm">
@@ -68,35 +127,74 @@ export function TodayFocus() {
             </div>
             <p className="text-[11px] text-muted-foreground/70 mt-0.5 ml-6">Pendientes por completar</p>
           </div>
-          <span className="text-sm text-muted-foreground">{completedCount}/{tasks.length}</span>
+          <span className="text-sm text-muted-foreground">{activeCount}</span>
         </div>
       </CardHeader>
 
       <CardContent className="space-y-2">
         {tasks.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-4">No hay tareas pendientes.</p>
-        ) : tasks.map(task => (
-          <div key={task.id}
-            className={`rounded-lg border transition-all ${
-              task.completed ? "bg-muted/30 border-border/30" : "bg-secondary/50 border-border/50 hover:border-border"
-            }`}
-          >
-            <div className="flex items-center gap-3 p-3">
-              <Checkbox checked={task.completed}
-                onCheckedChange={() => toggleTask(task.id)}
-                className="mt-0.5 shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className={`text-sm font-medium truncate ${task.completed ? "line-through text-muted-foreground" : ""}`}>
-                  {task.title}
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5">{task.subject}</p>
+        ) : tasks.map(task => {
+          const isFading = fadingIds.has(task.id)
+          const isEntering = enteringIds.has(task.id)
+          const isConfirming = confirmingId === task.id
+
+          return (
+            <div key={task.id}
+              className={`rounded-lg border transition-all duration-400 ${
+                isFading
+                  ? "opacity-0 scale-95 -translate-y-1"
+                  : isEntering
+                    ? "animate-in fade-in slide-in-from-top-2 duration-300"
+                    : ""
+              } ${
+                isConfirming
+                  ? "border-primary/40 bg-primary/5"
+                  : "bg-secondary/50 border-border/50 hover:border-border"
+              }`}
+              style={isFading ? { maxHeight: 0, marginBottom: 0, padding: 0, overflow: "hidden", transition: "all 400ms ease-out" } : {}}
+            >
+              <div className="flex items-center gap-3 p-3">
+                <Checkbox
+                  checked={false}
+                  onCheckedChange={() => startComplete(task.id)}
+                  className="mt-0.5 shrink-0"
+                  disabled={isFading || isConfirming}
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{task.title}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{task.subject}</p>
+                </div>
+                <Badge variant="secondary" className={`text-xs shrink-0 ${priorityColors[task.priority]}`}>
+                  {priorityLabel[task.priority]}
+                </Badge>
               </div>
-              <Badge variant="secondary" className={`text-xs shrink-0 ${priorityColors[task.priority]}`}>
-                {priorityLabel[task.priority]}
-              </Badge>
+
+              {/* Confirmation panel */}
+              {isConfirming && (
+                <div className="px-3 pb-3 space-y-2.5 border-t border-border/40 pt-2.5 animate-in fade-in slide-in-from-top-1 duration-200">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    ¿Completar esta tarea?
+                  </p>
+                  <Textarea
+                    placeholder="Anotaciones (opcional)"
+                    value={completionNote}
+                    onChange={e => setCompletionNote(e.target.value)}
+                    className="text-sm min-h-[60px] resize-none"
+                  />
+                  <div className="flex justify-end gap-2">
+                    <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={cancelComplete}>
+                      <X className="h-3 w-3" />Cancelar
+                    </Button>
+                    <Button size="sm" className="h-7 text-xs gap-1" onClick={confirmComplete}>
+                      <Check className="h-3 w-3" />Completar
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
-        ))}
+          )
+        })}
       </CardContent>
     </Card>
   )

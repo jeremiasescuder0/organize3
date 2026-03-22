@@ -1,10 +1,11 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { BookOpen } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
+import { EVENTS } from "@/lib/events"
 
 interface Exam {
   id: string
@@ -23,7 +24,6 @@ function getDaysUntil(dateStr: string): number {
 }
 
 function formatDaysUntil(days: number): string {
-  if (days < 0) return "Vencido"
   if (days === 0) return "Hoy"
   if (days === 1) return "Mañana"
   return `Faltan ${days} días`
@@ -38,11 +38,10 @@ function getUrgencyColor(days: number): string {
 export function ExamFocus() {
   const [exams, setExams] = useState<Exam[]>([])
   const [loading, setLoading] = useState(true)
+  const [enteringIds, setEnteringIds] = useState<Set<string>>(new Set())
   const supabase = createClient()
 
-  useEffect(() => { loadData() }, [])
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
     const { data } = await supabase
@@ -51,10 +50,30 @@ export function ExamFocus() {
       .eq("user_id", user.id)
       .gte("date", new Date().toISOString().split("T")[0])
       .order("date", { ascending: true })
-      .limit(5)
-    if (data) setExams(data)
+      .limit(10)
+    if (data) {
+      const currentIds = new Set(exams.map(e => e.id))
+      const newIds = new Set<string>()
+      data.forEach(e => {
+        if (!currentIds.has(e.id)) newIds.add(e.id)
+      })
+      setExams(data)
+      if (newIds.size > 0 && !loading) {
+        setEnteringIds(newIds)
+        setTimeout(() => setEnteringIds(new Set()), 500)
+      }
+    }
     setLoading(false)
-  }
+  }, [])
+
+  useEffect(() => { loadData() }, [loadData])
+
+  // Listen for cross-component events
+  useEffect(() => {
+    const onExamAdded = () => loadData()
+    window.addEventListener(EVENTS.EXAM_ADDED, onExamAdded)
+    return () => window.removeEventListener(EVENTS.EXAM_ADDED, onExamAdded)
+  }, [loadData])
 
   if (loading) return (
     <Card className="border-border/50 shadow-sm">
@@ -88,9 +107,13 @@ export function ExamFocus() {
           <p className="text-sm text-muted-foreground text-center py-4">No hay exámenes próximos.</p>
         ) : exams.map(exam => {
           const days = getDaysUntil(exam.date)
+          const isEntering = enteringIds.has(exam.id)
+
           return (
             <div key={exam.id}
-              className="rounded-lg border bg-secondary/50 border-border/50 hover:border-border transition-all"
+              className={`rounded-lg border bg-secondary/50 border-border/50 hover:border-border transition-all duration-300 ${
+                isEntering ? "animate-in fade-in slide-in-from-top-2 duration-300" : ""
+              }`}
             >
               <div className="flex items-center gap-3 p-3">
                 <div className="p-1 rounded bg-amber-100 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400">

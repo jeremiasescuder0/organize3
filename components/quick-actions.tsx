@@ -11,6 +11,7 @@ import { Plus, BookOpen, FolderOpen, Zap } from "lucide-react"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 import { DateInput } from "@/components/ui/date-input"
+import { EVENTS, dispatch } from "@/lib/events"
 
 interface Subject {
   id: string
@@ -58,6 +59,7 @@ export function QuickActions() {
     setNewTask({ title: "", subject: "", priority: "medium", due_date: "" })
     setTaskOpen(false)
     setSaving(false)
+    dispatch(EVENTS.TASK_ADDED)
   }
 
   const addExam = async () => {
@@ -77,6 +79,7 @@ export function QuickActions() {
     setNewExam({ subject: "", date: "", topics: "" })
     setExamOpen(false)
     setSaving(false)
+    dispatch(EVENTS.EXAM_ADDED)
   }
 
   return (
