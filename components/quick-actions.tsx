@@ -87,8 +87,9 @@ export function QuickActions() {
             <div className="p-1.5 rounded-lg bg-primary/10">
               <Zap className="h-4 w-4 text-primary" />
             </div>
-            <CardTitle className="text-base font-semibold">Acciones Rapidas</CardTitle>
+            <CardTitle className="text-base font-semibold">Acciones Rápidas</CardTitle>
           </div>
+          <p className="text-[11px] text-muted-foreground/70 mt-0.5 ml-8">Atajos para crear y gestionar</p>
         </CardHeader>
         <CardContent className="space-y-2">
           <Button

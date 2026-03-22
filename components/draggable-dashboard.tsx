@@ -31,7 +31,7 @@ type ColumnId = "left" | "right"
 type Layout = { left: ModuleId[]; right: ModuleId[] }
 
 const MODULE_DEFS: { id: ModuleId; label: string; component: React.ReactNode }[] = [
-  { id: "today",           label: "Enfoque",           component: <TodayFocus /> },
+  { id: "today",           label: "Tareas y TPs",      component: <TodayFocus /> },
   { id: "exams",           label: "Exámenes",          component: <ExamFocus /> },
   { id: "calendar",        label: "Calendario",        component: <HomeCalendar /> },
   { id: "recommendations", label: "Recomendaciones",   component: <SmartRecommendations /> },

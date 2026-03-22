@@ -154,6 +154,7 @@ export function SmartRecommendations() {
           </div>
           <CardTitle className="text-base font-semibold">Recomendaciones</CardTitle>
         </div>
+        <p className="text-[11px] text-muted-foreground/70 mt-0.5 ml-8">Sugerencias basadas en tu actividad</p>
       </CardHeader>
       <CardContent className="space-y-3">
         {loading ? (

@@ -193,6 +193,7 @@ export function HomeCalendar() {
               <Calendar className="h-4 w-4 text-primary" />
             </div>
             <CardTitle className="text-base font-semibold">Calendario</CardTitle>
+            <p className="text-[11px] text-muted-foreground/70 mt-0.5 ml-6">Tu agenda académica</p>
           </div>
 
           <div className="flex items-center gap-2">

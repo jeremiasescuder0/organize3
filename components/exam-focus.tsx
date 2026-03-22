@@ -58,7 +58,10 @@ export function ExamFocus() {
 
   if (loading) return (
     <Card className="border-border/50 shadow-sm">
-      <CardHeader className="pb-3"><CardTitle className="text-base font-semibold">Exámenes</CardTitle></CardHeader>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base font-semibold">Exámenes</CardTitle>
+        <p className="text-[11px] text-muted-foreground/70 mt-0.5">Próximas fechas de evaluación</p>
+      </CardHeader>
       <CardContent><div className="flex items-center justify-center py-8">
         <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
       </div></CardContent>
@@ -69,11 +72,14 @@ export function ExamFocus() {
     <Card className="border-border/50 shadow-sm">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <BookOpen className="h-4 w-4 text-primary" />
-            <CardTitle className="text-base font-semibold">Exámenes</CardTitle>
+          <div>
+            <div className="flex items-center gap-2">
+              <BookOpen className="h-4 w-4 text-primary" />
+              <CardTitle className="text-base font-semibold">Exámenes</CardTitle>
+            </div>
+            <p className="text-[11px] text-muted-foreground/70 mt-0.5 ml-6">Próximas fechas de evaluación</p>
           </div>
-          <span className="text-sm text-muted-foreground">{exams.length} próximo{exams.length !== 1 ? "s" : ""}</span>
+          <span className="text-sm text-muted-foreground">{exams.length}</span>
         </div>
       </CardHeader>
 
