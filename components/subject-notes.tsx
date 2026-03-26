@@ -424,7 +424,7 @@ export function SubjectNotes() {
           </div>
 
           {/* Toolbar */}
-          <div className="flex flex-wrap items-center gap-0.5 px-4 py-2 border-b border-border/50 bg-secondary/30">
+          <div className="sticky top-[61px] z-10 flex flex-wrap items-center gap-0.5 px-4 py-2 border-b border-border/50 bg-card">
             <TB icon={Heading1} title="Título 1" onClick={() => exec("formatBlock","h1")} />
             <TB icon={Heading2} title="Título 2" onClick={() => exec("formatBlock","h2")} />
             <Sep />
