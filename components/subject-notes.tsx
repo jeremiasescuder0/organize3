@@ -61,8 +61,8 @@ function groupOrder(label: string) {
 }
 
 const PURIFY_CONFIG = {
-  ALLOWED_TAGS: ['p','br','b','strong','i','em','u','s','strike','h1','h2','ul','ol','li','a','span','div'],
-  ALLOWED_ATTR: ['href','target','rel','style'],
+  ALLOWED_TAGS: ['p','br','b','strong','i','em','u','s','strike','h1','h2','ul','ol','li','a','span','div','img'],
+  ALLOWED_ATTR: ['href','target','rel','style','src','alt'],
   ALLOW_DATA_ATTR: false,
   FORCE_BODY: true,
 }
@@ -271,6 +271,44 @@ export function SubjectNotes() {
     setLinkUrl(""); setShowLink(false)
   }
 
+  // ── Image paste handler ───────────────────────────────
+  const handlePaste = useCallback(async (e: React.ClipboardEvent<HTMLDivElement>) => {
+    const items = Array.from(e.clipboardData.items)
+    const imageItem = items.find(item => item.type.startsWith("image/"))
+    if (!imageItem || !userId) return
+
+    e.preventDefault()
+
+    const file = imageItem.getAsFile()
+    if (!file) return
+
+    // Insert placeholder
+    const placeholderId = `img-uploading-${Date.now()}`
+    document.execCommand("insertHTML", false,
+      `<span id="${placeholderId}" style="color:#999;font-style:italic">Subiendo imagen...</span>`)
+
+    const ext = file.type === "image/png" ? "png" : file.type === "image/gif" ? "gif" : "jpg"
+    const path = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+
+    const { data, error } = await supabase.storage
+      .from("note-images")
+      .upload(path, file, { contentType: file.type, upsert: false })
+
+    // Remove placeholder
+    const placeholder = document.getElementById(placeholderId)
+    if (placeholder) placeholder.remove()
+
+    if (error || !data) {
+      console.error("Error subiendo imagen:", error)
+      return
+    }
+
+    const { data: { publicUrl } } = supabase.storage.from("note-images").getPublicUrl(data.path)
+    document.execCommand("insertHTML", false,
+      `<img src="${publicUrl}" alt="captura" style="max-width:100%;border-radius:6px;margin:8px 0;display:block;" />`)
+    setSaved(false)
+  }, [userId, supabase])
+
   // ── Filtered & grouped notes ──────────────────────────
   const filtered = notes.filter(n => {
     const matchSearch = search === "" ||
@@ -463,6 +501,7 @@ export function SubjectNotes() {
             onInput={() => { setSaved(false) }}
             onKeyUp={updateFormats}
             onMouseUp={updateFormats}
+            onPaste={handlePaste}
             className="min-h-[500px] px-8 py-6 focus:outline-none text-sm leading-relaxed text-foreground
               [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:mb-3 [&_h1]:mt-4
               [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:mb-2 [&_h2]:mt-3
@@ -470,7 +509,8 @@ export function SubjectNotes() {
               [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:my-2
               [&_li]:my-1 [&_a]:text-primary [&_a]:underline
               [&_b]:font-bold [&_strong]:font-bold
-              [&_i]:italic [&_em]:italic [&_u]:underline [&_s]:line-through"
+              [&_i]:italic [&_em]:italic [&_u]:underline [&_s]:line-through
+              [&_img]:max-w-full [&_img]:rounded-md [&_img]:my-2 [&_img]:block"
             data-placeholder="Empezá a escribir..."
           />
         </CardContent>
