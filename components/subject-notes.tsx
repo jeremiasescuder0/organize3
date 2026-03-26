@@ -271,12 +271,22 @@ export function SubjectNotes() {
     setLinkUrl(""); setShowLink(false)
   }
 
-  // ── Image paste handler ───────────────────────────────
+  // ── Paste handler: images → Storage, text → strip external styles ───
   const handlePaste = useCallback(async (e: React.ClipboardEvent<HTMLDivElement>) => {
     const items = Array.from(e.clipboardData.items)
     const imageItem = items.find(item => item.type.startsWith("image/"))
-    if (!imageItem || !userId) return
 
+    // ── Text paste: strip external formatting ──────────────
+    if (!imageItem) {
+      e.preventDefault()
+      const plain = e.clipboardData.getData("text/plain")
+      if (plain) document.execCommand("insertText", false, plain)
+      setSaved(false)
+      return
+    }
+
+    // ── Image paste: upload to Storage ─────────────────────
+    if (!userId) return
     e.preventDefault()
 
     const file = imageItem.getAsFile()
