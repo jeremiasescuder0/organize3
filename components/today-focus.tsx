@@ -37,8 +37,18 @@ export function TodayFocus() {
   const loadData = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-    const { data } = await supabase.from("tasks").select("*").eq("user_id", user.id)
-      .eq("completed", false).order("priority", { ascending: true }).limit(10)
+    const { data: raw } = await supabase.from("tasks").select("*").eq("user_id", user.id)
+      .eq("completed", false).order("due_date", { ascending: true, nullsFirst: false })
+    const priorityOrder = { high: 0, medium: 1, low: 2 } as const
+    const data = (raw ?? []).sort((a, b) => {
+      const pa = priorityOrder[a.priority as keyof typeof priorityOrder] ?? 2
+      const pb = priorityOrder[b.priority as keyof typeof priorityOrder] ?? 2
+      if (pa !== pb) return pa - pb
+      if (a.due_date && b.due_date) return a.due_date.localeCompare(b.due_date)
+      if (a.due_date) return -1
+      if (b.due_date) return 1
+      return 0
+    })
     if (data) {
       const currentIds = new Set(tasks.map(t => t.id))
       const newIds = new Set<string>()

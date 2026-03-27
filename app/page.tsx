@@ -12,6 +12,7 @@ import { AcademicCalendar } from "@/components/academic-calendar"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { BookOpen, Brain, StickyNote, CalendarDays } from "lucide-react"
 import { DragHint } from "@/components/drag-hint"
+import { UpcomingAlerts } from "@/components/upcoming-alerts"
 
 export default function Home() {
   const [mounted, setMounted] = useState(false)
@@ -105,6 +106,7 @@ export default function Home() {
         </Tabs>
       </main>
 
+      <UpcomingAlerts />
       <DragHint />
 
       <footer className="mt-12 pb-6 text-center text-xs text-muted-foreground/50 space-x-3">
