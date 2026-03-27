@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
-import { Sparkles, Check, X } from "lucide-react"
+import { Sparkles, Check, X, Calendar } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { EVENTS } from "@/lib/events"
 
@@ -165,9 +165,17 @@ export function TodayFocus() {
                   <p className="text-sm font-medium truncate">{task.title}</p>
                   <p className="text-xs text-muted-foreground mt-0.5">{task.subject}</p>
                 </div>
-                <Badge variant="secondary" className={`text-xs shrink-0 ${priorityColors[task.priority]}`}>
-                  {priorityLabel[task.priority]}
-                </Badge>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {task.due_date && (
+                    <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                      <Calendar className="h-3 w-3" />
+                      {new Date(task.due_date + "T00:00:00").toLocaleDateString("es-AR", { day: "numeric", month: "short" })}
+                    </span>
+                  )}
+                  <Badge variant="secondary" className={`text-xs ${priorityColors[task.priority]}`}>
+                    {priorityLabel[task.priority]}
+                  </Badge>
+                </div>
               </div>
 
               {/* Confirmation panel */}
