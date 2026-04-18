@@ -13,6 +13,7 @@ import {
   Heading1, Heading2, List, ListOrdered,
   Link, AlignLeft, AlignCenter, AlignRight, Eraser,
   Calendar, BookOpen, Trash2, Clock, FileDown,
+  Code, FileCode, Table,
 } from "lucide-react"
 
 // ── Types ──────────────────────────────────────────────
@@ -61,8 +62,8 @@ function groupOrder(label: string) {
 }
 
 const PURIFY_CONFIG = {
-  ALLOWED_TAGS: ['p','br','b','strong','i','em','u','s','strike','h1','h2','ul','ol','li','a','span','div','img'],
-  ALLOWED_ATTR: ['href','target','rel','style','src','alt'],
+  ALLOWED_TAGS: ['p','br','b','strong','i','em','u','s','strike','h1','h2','ul','ol','li','a','span','div','pre','code','img','table','thead','tbody','tr','th','td'],
+  ALLOWED_ATTR: ['href','target','rel','style','src','alt','colspan','rowspan'],
   ALLOW_DATA_ATTR: false,
   FORCE_BODY: true,
 }
@@ -104,6 +105,9 @@ export function SubjectNotes() {
   const [saved, setSaved] = useState(true)
   const [linkUrl, setLinkUrl] = useState("")
   const [showLink, setShowLink] = useState(false)
+  const [showTable, setShowTable] = useState(false)
+  const [tableRows, setTableRows] = useState("3")
+  const [tableCols, setTableCols] = useState("3")
   const [activeFormats, setActiveFormats] = useState<Set<string>>(new Set())
   const editorRef = useRef<HTMLDivElement>(null)
 
@@ -256,6 +260,41 @@ export function SubjectNotes() {
       if (document.queryCommandState("strikeThrough")) f.add("strikeThrough")
     } catch {}
     setActiveFormats(f)
+  }
+
+  const insertTable = () => {
+    const rows = Math.max(1, Math.min(20, parseInt(tableRows) || 3))
+    const cols = Math.max(1, Math.min(10, parseInt(tableCols) || 3))
+    const cellStyle = `style="border:1px solid #d1d5db;padding:8px 12px;min-width:80px;text-align:left;"`
+    const headerCells = Array(cols).fill(0).map((_, i) =>
+      `<th ${cellStyle} style="border:1px solid #d1d5db;padding:8px 12px;min-width:80px;background:#f3f4f6;font-weight:600;">Columna ${i + 1}</th>`
+    ).join("")
+    const bodyRows = Array(rows - 1).fill(0).map(() =>
+      `<tr>${Array(cols).fill(0).map(() => `<td ${cellStyle}>&nbsp;</td>`).join("")}</tr>`
+    ).join("")
+    const html = `<table style="border-collapse:collapse;width:100%;margin:12px 0;">
+      <thead><tr>${headerCells}</tr></thead>
+      <tbody>${bodyRows}</tbody>
+    </table><p><br></p>`
+    document.execCommand("insertHTML", false, html)
+    editorRef.current?.focus()
+    setShowTable(false)
+    setSaved(false)
+  }
+
+  const insertCode = (block: boolean) => {
+    const sel = window.getSelection()
+    const selected = sel && sel.rangeCount > 0 ? sel.getRangeAt(0).toString() : ""
+    const text = selected || (block ? "código aquí" : "código")
+    if (block) {
+      document.execCommand("insertHTML", false,
+        `<pre style="background:#1e1e1e;color:#d4d4d4;font-family:monospace;font-size:13px;padding:12px 16px;border-radius:6px;overflow-x:auto;margin:8px 0;white-space:pre-wrap;"><code>${text}</code></pre>`)
+    } else {
+      document.execCommand("insertHTML", false,
+        `<code style="background:rgba(99,102,241,0.12);color:#6366f1;font-family:monospace;font-size:0.9em;padding:2px 5px;border-radius:4px;">${text}</code>`)
+    }
+    editorRef.current?.focus()
+    setSaved(false)
   }
 
   const exec = (cmd: string, val?: string) => {
@@ -488,7 +527,10 @@ export function SubjectNotes() {
             <TB icon={AlignCenter} title="Centro" onClick={() => exec("justifyCenter")} />
             <TB icon={AlignRight} title="Derecha" onClick={() => exec("justifyRight")} />
             <Sep />
-            <TB icon={Link} title="Insertar enlace" onClick={() => setShowLink(!showLink)} />
+            <TB icon={Link} title="Insertar enlace" onClick={() => { setShowLink(!showLink); setShowTable(false) }} />
+            <TB icon={Table} title="Insertar tabla" onClick={() => { setShowTable(!showTable); setShowLink(false) }} />
+            <TB icon={Code} title="Código inline" onClick={() => insertCode(false)} />
+            <TB icon={FileCode} title="Bloque de código" onClick={() => insertCode(true)} />
             <TB icon={Eraser} title="Limpiar formato" onClick={() => exec("removeFormat")} />
           </div>
 
@@ -500,6 +542,30 @@ export function SubjectNotes() {
                 onKeyDown={e => e.key === "Enter" && insertLink()} />
               <Button size="sm" className="h-8" onClick={insertLink}>Insertar</Button>
               <Button size="sm" variant="ghost" className="h-8" onClick={() => setShowLink(false)}>×</Button>
+            </div>
+          )}
+
+          {showTable && (
+            <div className="flex items-center gap-3 px-4 py-2 border-b border-border/50 bg-secondary/20">
+              <span className="text-xs text-muted-foreground font-medium">Tabla</span>
+              <div className="flex items-center gap-1.5">
+                <Input
+                  type="number" min={1} max={20} value={tableRows}
+                  onChange={e => setTableRows(e.target.value)}
+                  className="h-8 w-16 text-sm text-center" placeholder="Filas"
+                />
+                <span className="text-xs text-muted-foreground">×</span>
+                <Input
+                  type="number" min={1} max={10} value={tableCols}
+                  onChange={e => setTableCols(e.target.value)}
+                  className="h-8 w-16 text-sm text-center" placeholder="Cols"
+                />
+              </div>
+              <span className="text-xs text-muted-foreground">
+                {tableRows || "?"} filas × {tableCols || "?"} columnas
+              </span>
+              <Button size="sm" className="h-8" onClick={insertTable}>Insertar</Button>
+              <Button size="sm" variant="ghost" className="h-8" onClick={() => setShowTable(false)}>×</Button>
             </div>
           )}
 
@@ -520,7 +586,11 @@ export function SubjectNotes() {
               [&_li]:my-1 [&_a]:text-primary [&_a]:underline
               [&_b]:font-bold [&_strong]:font-bold
               [&_i]:italic [&_em]:italic [&_u]:underline [&_s]:line-through
-              [&_img]:max-w-full [&_img]:rounded-md [&_img]:my-2 [&_img]:block"
+              [&_img]:max-w-full [&_img]:rounded-md [&_img]:my-2 [&_img]:block
+              [&_table]:w-full [&_table]:border-collapse [&_table]:my-3
+              [&_th]:border [&_th]:border-border [&_th]:px-3 [&_th]:py-2 [&_th]:bg-secondary/50 [&_th]:font-semibold [&_th]:text-left
+              [&_td]:border [&_td]:border-border [&_td]:px-3 [&_td]:py-2 [&_td]:align-top
+              [&_tr:hover_td]:bg-secondary/20"
             data-placeholder="Empezá a escribir..."
           />
         </CardContent>
