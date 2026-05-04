@@ -46,7 +46,7 @@ export function DashboardHeader() {
     <header className="sticky top-0 z-50 bg-background border-b border-border/50">
       <div className="container mx-auto px-6 py-3 max-w-7xl flex items-center justify-between">
         <Link href="/">
-          <Image src="/logo-icon.png" alt="Focus" width={48} height={48} className="h-12 w-12 object-contain" priority />
+          <Image src="/logo-icon.png" alt="Focus" width={80} height={80} className="h-20 w-20 object-contain" priority />
         </Link>
 
         <div className="flex items-center gap-1">
