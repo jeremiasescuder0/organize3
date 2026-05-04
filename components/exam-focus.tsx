@@ -1,17 +1,20 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { BookOpen } from "lucide-react"
+import { Pencil, Trash2, X } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { EVENTS } from "@/lib/events"
+import { ExamDialog } from "@/components/exam-dialog"
+import type { Exam as DialogExam } from "@/components/exam-dialog"
 
 interface Exam {
   id: string
   subject: string
   date: string
   time?: string
+  type?: string
+  location?: string
+  notes?: string
   topics: string[]
 }
 
@@ -23,22 +26,24 @@ function getDaysUntil(dateStr: string): number {
   return Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
 }
 
-function formatDaysUntil(days: number): string {
-  if (days === 0) return "Hoy"
-  if (days === 1) return "Mañana"
-  return `Faltan ${days} días`
+function formatDays(days: number): string {
+  if (days === 0) return "hoy"
+  if (days === 1) return "mañana"
+  return `en ${days} días`
 }
 
-function getUrgencyColor(days: number): string {
-  if (days <= 1) return "bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-400"
-  if (days <= 3) return "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400"
-  return "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400"
+function daysClass(days: number): string {
+  if (days <= 1) return "text-foreground"
+  if (days <= 3) return "text-muted-foreground"
+  return "text-muted-foreground/50"
 }
 
 export function ExamFocus() {
   const [exams, setExams] = useState<Exam[]>([])
   const [loading, setLoading] = useState(true)
   const [enteringIds, setEnteringIds] = useState<Set<string>>(new Set())
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [editingExam, setEditingExam] = useState<Exam | null>(null)
   const supabase = createClient()
 
   const loadData = useCallback(async () => {
@@ -54,9 +59,7 @@ export function ExamFocus() {
     if (data) {
       const currentIds = new Set(exams.map(e => e.id))
       const newIds = new Set<string>()
-      data.forEach(e => {
-        if (!currentIds.has(e.id)) newIds.add(e.id)
-      })
+      data.forEach(e => { if (!currentIds.has(e.id)) newIds.add(e.id) })
       setExams(data)
       if (newIds.size > 0 && !loading) {
         setEnteringIds(newIds)
@@ -68,71 +71,117 @@ export function ExamFocus() {
 
   useEffect(() => { loadData() }, [loadData])
 
-  // Listen for cross-component events
   useEffect(() => {
     const onExamAdded = () => loadData()
     window.addEventListener(EVENTS.EXAM_ADDED, onExamAdded)
     return () => window.removeEventListener(EVENTS.EXAM_ADDED, onExamAdded)
   }, [loadData])
 
-  if (loading) return (
-    <Card className="border-border/50 shadow-sm">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base font-semibold">Exámenes</CardTitle>
-        <p className="text-[11px] text-muted-foreground/70 mt-0.5">Próximas fechas de evaluación</p>
-      </CardHeader>
-      <CardContent><div className="flex items-center justify-center py-8">
-        <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-      </div></CardContent>
-    </Card>
-  )
+  const confirmDelete = async () => {
+    if (!deletingId) return
+    const id = deletingId
+    setDeletingId(null)
+    await supabase.from("exams").delete().eq("id", id)
+    setExams(prev => prev.filter(e => e.id !== id))
+    window.dispatchEvent(new CustomEvent(EVENTS.EXAM_ADDED))
+  }
+
+  const handleEditSave = async (updated: Omit<DialogExam, "id">) => {
+    if (!editingExam) return
+    await supabase.from("exams").update({
+      subject: updated.subject,
+      date: updated.date,
+      time: updated.time,
+      type: updated.type,
+      location: updated.location,
+      notes: updated.notes,
+      topics: updated.topics,
+    }).eq("id", editingExam.id)
+    setEditingExam(null)
+    loadData()
+    window.dispatchEvent(new CustomEvent(EVENTS.EXAM_ADDED))
+  }
 
   return (
-    <Card className="border-border/50 shadow-sm">
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="flex items-center gap-2">
-              <BookOpen className="h-4 w-4 text-primary" />
-              <CardTitle className="text-base font-semibold">Exámenes</CardTitle>
-            </div>
-            <p className="text-[11px] text-muted-foreground/70 mt-0.5 ml-6">Próximas fechas de evaluación</p>
-          </div>
-          <span className="text-sm text-muted-foreground">{exams.length}</span>
+    <>
+      <div>
+        <div className="flex items-baseline justify-between mb-3">
+          <span className="text-sm text-muted-foreground">Exámenes</span>
+          {!loading && <span className="text-xs text-muted-foreground/50">{exams.length}</span>}
         </div>
-      </CardHeader>
 
-      <CardContent className="space-y-2">
-        {exams.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-4">No hay exámenes próximos.</p>
-        ) : exams.map(exam => {
-          const days = getDaysUntil(exam.date)
-          const isEntering = enteringIds.has(exam.id)
+        {loading ? (
+          <p className="text-sm text-muted-foreground/40 py-4">—</p>
+        ) : exams.length === 0 ? (
+          <p className="text-sm text-muted-foreground/40 py-2">Sin exámenes próximos.</p>
+        ) : (
+          <div>
+            {exams.map(exam => {
+              const days = getDaysUntil(exam.date)
+              const isEntering = enteringIds.has(exam.id)
+              const isDeleting = deletingId === exam.id
 
-          return (
-            <div key={exam.id}
-              className={`rounded-lg border bg-secondary/50 border-border/50 hover:border-border transition-all duration-300 ${
-                isEntering ? "animate-in fade-in slide-in-from-top-2 duration-300" : ""
-              }`}
-            >
-              <div className="flex items-center gap-3 p-3">
-                <div className="p-1 rounded bg-amber-100 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400">
-                  <BookOpen className="h-3 w-3" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{exam.subject}</p>
-                  {exam.time && (
-                    <p className="text-xs text-muted-foreground mt-0.5">{exam.time}</p>
+              return (
+                <div
+                  key={exam.id}
+                  className={`group border-b border-border/20 last:border-0 ${
+                    isEntering ? "animate-in fade-in duration-300" : ""
+                  }`}
+                >
+                  <div className={`flex items-center gap-3 py-2.5 -mx-2 px-2 rounded-sm transition-colors ${
+                    !isDeleting ? "hover:bg-muted/30" : ""
+                  }`}>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm text-foreground">{exam.subject}</span>
+                      {exam.type && exam.type !== "Parcial" && (
+                        <span className="text-xs text-muted-foreground/50 ml-2">{exam.type}</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className={`text-xs ${daysClass(days)}`}>{formatDays(days)}</span>
+                      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={() => { setEditingExam(exam); setDeletingId(null) }}
+                          className="p-1 text-muted-foreground/40 hover:text-muted-foreground transition-colors"
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </button>
+                        <button
+                          onClick={() => { setDeletingId(exam.id); setEditingExam(null) }}
+                          className="p-1 text-muted-foreground/40 hover:text-destructive transition-colors"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {isDeleting && (
+                    <div className="pb-3 pl-2 animate-in fade-in duration-150">
+                      <div className="flex gap-3 items-center">
+                        <span className="text-xs text-muted-foreground">¿Eliminar?</span>
+                        <button onClick={() => setDeletingId(null)} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+                          No
+                        </button>
+                        <button onClick={confirmDelete} className="text-xs text-destructive hover:text-destructive/80 transition-colors">
+                          Sí, eliminar
+                        </button>
+                      </div>
+                    </div>
                   )}
                 </div>
-                <Badge variant="secondary" className={`text-xs shrink-0 ${getUrgencyColor(days)}`}>
-                  {formatDaysUntil(days)}
-                </Badge>
-              </div>
-            </div>
-          )
-        })}
-      </CardContent>
-    </Card>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      <ExamDialog
+        open={!!editingExam}
+        onOpenChange={open => { if (!open) setEditingExam(null) }}
+        onSave={handleEditSave}
+        exam={editingExam ?? undefined}
+      />
+    </>
   )
 }

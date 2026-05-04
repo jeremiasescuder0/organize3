@@ -1,14 +1,14 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
-import { Sparkles, Check, X, Calendar } from "lucide-react"
+import { Check, X, Pencil, Trash2 } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { EVENTS } from "@/lib/events"
+import { TaskDialog } from "@/components/task-dialog"
+import type { Task as DialogTask } from "@/components/today-tasks"
 
 interface Task {
   id: string
@@ -17,14 +17,19 @@ interface Task {
   priority: "high" | "medium" | "low"
   completed: boolean
   due_date?: string
+  description?: string
 }
 
-const priorityColors = {
-  high: "bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-400",
-  medium: "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400",
-  low: "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400",
+function formatDue(dateStr: string): string {
+  const days = Math.ceil(
+    (new Date(dateStr + "T00:00:00").setHours(0,0,0,0) - new Date().setHours(0,0,0,0)) / 86400000
+  )
+  if (days < 0) return "vencida"
+  if (days === 0) return "hoy"
+  if (days === 1) return "mañana"
+  return `en ${days} días`
 }
-const priorityLabel = { high: "Alta", medium: "Media", low: "Baja" }
+
 export function TodayFocus() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
@@ -32,6 +37,8 @@ export function TodayFocus() {
   const [completionNote, setCompletionNote] = useState("")
   const [fadingIds, setFadingIds] = useState<Set<string>>(new Set())
   const [enteringIds, setEnteringIds] = useState<Set<string>>(new Set())
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [editingTask, setEditingTask] = useState<Task | null>(null)
   const supabase = createClient()
 
   const loadData = useCallback(async () => {
@@ -52,9 +59,7 @@ export function TodayFocus() {
     if (data) {
       const currentIds = new Set(tasks.map(t => t.id))
       const newIds = new Set<string>()
-      data.forEach(t => {
-        if (!currentIds.has(t.id)) newIds.add(t.id)
-      })
+      data.forEach(t => { if (!currentIds.has(t.id)) newIds.add(t.id) })
       setTasks(data)
       if (newIds.size > 0 && !loading) {
         setEnteringIds(newIds)
@@ -66,7 +71,6 @@ export function TodayFocus() {
 
   useEffect(() => { loadData() }, [loadData])
 
-  // Listen for cross-component events
   useEffect(() => {
     const onTaskAdded = () => loadData()
     window.addEventListener(EVENTS.TASK_ADDED, onTaskAdded)
@@ -75,6 +79,7 @@ export function TodayFocus() {
 
   const startComplete = (id: string) => {
     setConfirmingId(id)
+    setDeletingId(null)
     setCompletionNote("")
   }
 
@@ -86,134 +91,176 @@ export function TodayFocus() {
   const confirmComplete = async () => {
     if (!confirmingId) return
     const note = completionNote.trim()
-
-    // Save note if provided
     if (note) {
-      await supabase.from("tasks").update({
-        completed: true,
-        description: note,
-      }).eq("id", confirmingId)
+      await supabase.from("tasks").update({ completed: true, description: note }).eq("id", confirmingId)
     } else {
       await supabase.from("tasks").update({ completed: true }).eq("id", confirmingId)
     }
-
-    // Start fade-out
     setFadingIds(prev => new Set(prev).add(confirmingId))
+    const id = confirmingId
     setConfirmingId(null)
     setCompletionNote("")
-
-    // Remove from list after animation
     setTimeout(() => {
-      setTasks(prev => prev.filter(t => t.id !== confirmingId))
-      setFadingIds(prev => {
-        const next = new Set(prev)
-        next.delete(confirmingId)
-        return next
-      })
-      // Notify other components
+      setTasks(prev => prev.filter(t => t.id !== id))
+      setFadingIds(prev => { const next = new Set(prev); next.delete(id); return next })
       window.dispatchEvent(new CustomEvent(EVENTS.TASK_COMPLETED))
-    }, 400)
+    }, 300)
   }
 
-  if (loading) return (
-    <Card className="border-border/50 shadow-sm">
-      <CardHeader className="pb-3"><CardTitle className="text-base font-semibold">Tareas y TPs</CardTitle></CardHeader>
-      <CardContent><div className="flex items-center justify-center py-8">
-        <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-      </div></CardContent>
-    </Card>
-  )
+  const confirmDelete = async () => {
+    if (!deletingId) return
+    const id = deletingId
+    setDeletingId(null)
+    await supabase.from("tasks").delete().eq("id", id)
+    setFadingIds(prev => new Set(prev).add(id))
+    setTimeout(() => {
+      setTasks(prev => prev.filter(t => t.id !== id))
+      setFadingIds(prev => { const next = new Set(prev); next.delete(id); return next })
+      window.dispatchEvent(new CustomEvent(EVENTS.TASK_COMPLETED))
+    }, 300)
+  }
+
+  const handleEditSave = async (updated: Omit<DialogTask, "id">) => {
+    if (!editingTask) return
+    await supabase.from("tasks").update({
+      title: updated.title,
+      description: updated.description,
+      subject: updated.subject,
+      priority: updated.priority,
+      due_date: updated.dueDate || null,
+    }).eq("id", editingTask.id)
+    setEditingTask(null)
+    loadData()
+    window.dispatchEvent(new CustomEvent(EVENTS.TASK_ADDED))
+  }
 
   const activeCount = tasks.filter(t => !fadingIds.has(t.id)).length
 
   return (
-    <Card className="border-border/50 shadow-sm">
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-primary" />
-              <CardTitle className="text-base font-semibold">Tareas y TPs</CardTitle>
-            </div>
-            <p className="text-[11px] text-muted-foreground/70 mt-0.5 ml-6">Pendientes por completar</p>
-          </div>
-          <span className="text-sm text-muted-foreground">{activeCount}</span>
+    <>
+      <div>
+        {/* Section header */}
+        <div className="flex items-baseline justify-between mb-3">
+          <span className="text-sm text-muted-foreground">Tareas y TPs</span>
+          {!loading && <span className="text-xs text-muted-foreground/50">{activeCount}</span>}
         </div>
-      </CardHeader>
 
-      <CardContent className="space-y-2">
-        {tasks.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-4">No hay tareas pendientes.</p>
-        ) : tasks.map(task => {
-          const isFading = fadingIds.has(task.id)
-          const isEntering = enteringIds.has(task.id)
-          const isConfirming = confirmingId === task.id
+        {loading ? (
+          <p className="text-sm text-muted-foreground/40 py-4">—</p>
+        ) : tasks.length === 0 ? (
+          <p className="text-sm text-muted-foreground/40 py-2">Sin tareas pendientes.</p>
+        ) : (
+          <div>
+            {tasks.map(task => {
+              const isFading = fadingIds.has(task.id)
+              const isEntering = enteringIds.has(task.id)
+              const isConfirming = confirmingId === task.id
+              const isDeleting = deletingId === task.id
 
-          return (
-            <div key={task.id}
-              className={`rounded-lg border transition-all duration-400 ${
-                isFading
-                  ? "opacity-0 scale-95 -translate-y-1"
-                  : isEntering
-                    ? "animate-in fade-in slide-in-from-top-2 duration-300"
-                    : ""
-              } ${
-                isConfirming
-                  ? "border-primary/40 bg-primary/5"
-                  : "bg-secondary/50 border-border/50 hover:border-border"
-              }`}
-              style={isFading ? { maxHeight: 0, marginBottom: 0, padding: 0, overflow: "hidden", transition: "all 400ms ease-out" } : {}}
-            >
-              <div className="flex items-center gap-3 p-3">
-                <Checkbox
-                  checked={false}
-                  onCheckedChange={() => startComplete(task.id)}
-                  className="mt-0.5 shrink-0"
-                  disabled={isFading || isConfirming}
-                />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{task.title}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">{task.subject}</p>
-                </div>
-                <div className="flex items-center gap-1.5 shrink-0">
-                  {task.due_date && (
-                    <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                      <Calendar className="h-3 w-3" />
-                      {new Date(task.due_date + "T00:00:00").toLocaleDateString("es-AR", { day: "numeric", month: "short" })}
-                    </span>
-                  )}
-                  <Badge variant="secondary" className={`text-xs ${priorityColors[task.priority]}`}>
-                    {priorityLabel[task.priority]}
-                  </Badge>
-                </div>
-              </div>
-
-              {/* Confirmation panel */}
-              {isConfirming && (
-                <div className="px-3 pb-3 space-y-2.5 border-t border-border/40 pt-2.5 animate-in fade-in slide-in-from-top-1 duration-200">
-                  <p className="text-xs font-medium text-muted-foreground">
-                    ¿Completar esta tarea?
-                  </p>
-                  <Textarea
-                    placeholder="Anotaciones (opcional)"
-                    value={completionNote}
-                    onChange={e => setCompletionNote(e.target.value)}
-                    className="text-sm min-h-[60px] resize-none"
-                  />
-                  <div className="flex justify-end gap-2">
-                    <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={cancelComplete}>
-                      <X className="h-3 w-3" />Cancelar
-                    </Button>
-                    <Button size="sm" className="h-7 text-xs gap-1" onClick={confirmComplete}>
-                      <Check className="h-3 w-3" />Completar
-                    </Button>
+              return (
+                <div
+                  key={task.id}
+                  className={`group border-b border-border/20 last:border-0 transition-all duration-300 ${
+                    isFading ? "opacity-0 max-h-0 overflow-hidden" : "opacity-100"
+                  } ${isEntering ? "animate-in fade-in duration-300" : ""}`}
+                >
+                  {/* Task row */}
+                  <div className={`flex items-center gap-3 py-2.5 -mx-2 px-2 rounded-sm transition-colors ${
+                    !isConfirming && !isDeleting ? "hover:bg-muted/30" : ""
+                  }`}>
+                    <Checkbox
+                      checked={false}
+                      onCheckedChange={() => startComplete(task.id)}
+                      className="shrink-0 h-3.5 w-3.5 rounded-sm border-border/50"
+                      disabled={isFading || isConfirming || isDeleting}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm text-foreground">{task.title}</span>
+                      {task.subject && (
+                        <span className="text-xs text-muted-foreground/60 ml-2">{task.subject}</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <span className="text-xs text-muted-foreground/50">
+                        {task.priority === "high" && "Alta"}
+                        {task.due_date && (
+                          <>{task.priority === "high" ? " · " : ""}{formatDue(task.due_date)}</>
+                        )}
+                      </span>
+                      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={() => { setEditingTask(task); setConfirmingId(null); setDeletingId(null) }}
+                          disabled={isFading}
+                          className="p-1 text-muted-foreground/40 hover:text-muted-foreground transition-colors"
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </button>
+                        <button
+                          onClick={() => { setDeletingId(task.id); setConfirmingId(null) }}
+                          disabled={isFading}
+                          className="p-1 text-muted-foreground/40 hover:text-destructive transition-colors"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
+                    </div>
                   </div>
+
+                  {/* Completion panel */}
+                  {isConfirming && (
+                    <div className="pb-3 pl-6 space-y-2 animate-in fade-in duration-150">
+                      <Textarea
+                        placeholder="Anotaciones opcionales..."
+                        value={completionNote}
+                        onChange={e => setCompletionNote(e.target.value)}
+                        className="text-xs min-h-[50px] resize-none bg-muted/20 border-border/30"
+                      />
+                      <div className="flex gap-2">
+                        <button onClick={cancelComplete} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
+                          <X className="h-3 w-3" /> Cancelar
+                        </button>
+                        <button onClick={confirmComplete} className="flex items-center gap-1 text-xs text-foreground hover:text-primary transition-colors">
+                          <Check className="h-3 w-3" /> Completar
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Delete panel */}
+                  {isDeleting && (
+                    <div className="pb-3 pl-6 animate-in fade-in duration-150">
+                      <div className="flex gap-3 items-center">
+                        <span className="text-xs text-muted-foreground">¿Eliminar?</span>
+                        <button onClick={() => setDeletingId(null)} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+                          No
+                        </button>
+                        <button onClick={confirmDelete} className="text-xs text-destructive hover:text-destructive/80 transition-colors">
+                          Sí, eliminar
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          )
-        })}
-      </CardContent>
-    </Card>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      <TaskDialog
+        open={!!editingTask}
+        onOpenChange={open => { if (!open) setEditingTask(null) }}
+        onSave={handleEditSave}
+        task={editingTask ? {
+          id: editingTask.id,
+          title: editingTask.title,
+          subject: editingTask.subject,
+          priority: editingTask.priority,
+          completed: editingTask.completed,
+          dueDate: editingTask.due_date,
+          description: editingTask.description,
+        } : undefined}
+      />
+    </>
   )
 }

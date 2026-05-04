@@ -3,14 +3,12 @@
 import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { DashboardHeader } from "@/components/dashboard-header"
-import { StatsCards } from "@/components/stats-cards"
 import { DraggableDashboard } from "@/components/draggable-dashboard"
 import { SubjectSelector } from "@/components/subject-selector"
 import { FocusSession } from "@/components/focus-session"
 import { SubjectNotes } from "@/components/subject-notes"
 import { AcademicCalendar } from "@/components/academic-calendar"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { BookOpen, Brain, StickyNote, CalendarDays } from "lucide-react"
 import { DragHint } from "@/components/drag-hint"
 import { UpcomingAlerts } from "@/components/upcoming-alerts"
 
@@ -45,10 +43,7 @@ export default function Home() {
   if (!mounted || checkingSubjects) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <BookOpen className="h-12 w-12 mx-auto text-primary animate-pulse" />
-          <p className="mt-4 text-muted-foreground">Cargando...</p>
-        </div>
+        <p className="text-sm text-muted-foreground">Cargando...</p>
       </div>
     )
   }
@@ -62,30 +57,23 @@ export default function Home() {
       <DashboardHeader />
       <main className="container mx-auto px-4 py-6 max-w-7xl">
         <Tabs defaultValue="inicio">
-          <TabsList className="mb-6 h-10">
-            <TabsTrigger value="inicio" className="gap-2 text-sm">
-              <BookOpen className="h-4 w-4" />
+          <TabsList className="mb-8 h-auto bg-transparent border-b border-border/40 rounded-none p-0 w-full justify-start gap-0">
+            <TabsTrigger value="inicio" className="rounded-none border-b-2 border-transparent data-[state=active]:border-foreground/60 data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent px-0 pb-3 mr-7 h-auto text-muted-foreground data-[state=active]:text-foreground font-normal text-sm">
               Inicio
             </TabsTrigger>
-            <TabsTrigger value="enfoque" className="gap-2 text-sm">
-              <Brain className="h-4 w-4" />
+            <TabsTrigger value="enfoque" className="rounded-none border-b-2 border-transparent data-[state=active]:border-foreground/60 data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent px-0 pb-3 mr-7 h-auto text-muted-foreground data-[state=active]:text-foreground font-normal text-sm">
               Sesión de Estudio
             </TabsTrigger>
-            <TabsTrigger value="notas" className="gap-2 text-sm">
-              <StickyNote className="h-4 w-4" />
+            <TabsTrigger value="notas" className="rounded-none border-b-2 border-transparent data-[state=active]:border-foreground/60 data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent px-0 pb-3 mr-7 h-auto text-muted-foreground data-[state=active]:text-foreground font-normal text-sm">
               Notas
             </TabsTrigger>
-            <TabsTrigger value="calendario" className="gap-2 text-sm">
-              <CalendarDays className="h-4 w-4" />
+            <TabsTrigger value="calendario" className="rounded-none border-b-2 border-transparent data-[state=active]:border-foreground/60 data-[state=active]:bg-transparent data-[state=active]:shadow-none bg-transparent px-0 pb-3 h-auto text-muted-foreground data-[state=active]:text-foreground font-normal text-sm">
               Calendario
             </TabsTrigger>
           </TabsList>
 
           {/* Dashboard */}
           <TabsContent value="inicio" className="space-y-6 mt-0">
-            <div className="rounded-2xl border border-border/40 bg-secondary/30 px-6 py-5">
-              <StatsCards />
-            </div>
             <DraggableDashboard />
           </TabsContent>
 

@@ -78,9 +78,7 @@ function DroppableColumn({
   return (
     <div
       ref={setNodeRef}
-      className={`${className ?? ""} rounded-lg transition-all duration-200 ${
-        isOver ? "ring-2 ring-primary/25 bg-primary/5" : ""
-      }`}
+      className={`${className ?? ""} transition-all duration-200 ${isOver ? "opacity-80" : ""}`}
     >
       {children}
     </div>
@@ -110,32 +108,25 @@ function SortableModule({
   isDragging: boolean
   children: React.ReactNode
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isOver } =
+  const { attributes, listeners, setNodeRef, transform, transition } =
     useSortable({ id })
 
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.3 : 1,
+    opacity: isDragging ? 0.2 : 1,
   }
 
   return (
     <div ref={setNodeRef} style={style} className="relative group">
-      {/* Drag handle with dots */}
       <button
         {...attributes}
         {...listeners}
         aria-label={`Mover ${label}`}
-        className="absolute top-3 right-3 z-10 p-1 rounded cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground transition-colors"
+        className="absolute top-0 right-0 z-10 p-1.5 cursor-grab active:cursor-grabbing text-muted-foreground/20 hover:text-muted-foreground/50 transition-colors"
       >
         <DragDots />
       </button>
-
-      {/* Drop indicator */}
-      {isOver && (
-        <div className="absolute inset-0 rounded-lg ring-2 ring-primary/60 pointer-events-none z-10" />
-      )}
-
       {children}
     </div>
   )
@@ -144,8 +135,8 @@ function SortableModule({
 // ── Drag ghost ──────────────────────────────────────────
 function DragGhost({ label }: { label: string }) {
   return (
-    <div className="px-4 py-3 rounded-lg border border-primary/50 bg-card shadow-xl text-sm font-medium text-foreground flex items-center gap-2 cursor-grabbing opacity-90">
-      <div className="text-muted-foreground"><DragDots /></div>
+    <div className="px-3 py-2 rounded border border-border/50 bg-background text-sm text-muted-foreground flex items-center gap-2 cursor-grabbing opacity-80">
+      <DragDots />
       {label}
     </div>
   )
@@ -253,17 +244,12 @@ export function DraggableDashboard() {
       onDragOver={onDragOver}
       onDragEnd={onDragEnd}
     >
-      <div className="grid gap-6 lg:grid-cols-3 pl-8">
+      <div className="grid gap-16 lg:grid-cols-[1fr_280px]">
         {/* Left column */}
-        <DroppableColumn id="left" className="lg:col-span-2 space-y-6">
+        <DroppableColumn id="left" className="space-y-10">
           <SortableContext items={layout.left} strategy={verticalListSortingStrategy}>
             {layout.left.map(id => (
-              <SortableModule
-                key={id}
-                id={id}
-                label={moduleMap[id].label}
-                isDragging={activeId === id}
-              >
+              <SortableModule key={id} id={id} label={moduleMap[id].label} isDragging={activeId === id}>
                 {moduleMap[id].component}
               </SortableModule>
             ))}
@@ -271,15 +257,10 @@ export function DraggableDashboard() {
         </DroppableColumn>
 
         {/* Right column */}
-        <DroppableColumn id="right" className="space-y-6">
+        <DroppableColumn id="right" className="space-y-10">
           <SortableContext items={layout.right} strategy={verticalListSortingStrategy}>
             {layout.right.map(id => (
-              <SortableModule
-                key={id}
-                id={id}
-                label={moduleMap[id].label}
-                isDragging={activeId === id}
-              >
+              <SortableModule key={id} id={id} label={moduleMap[id].label} isDragging={activeId === id}>
                 {moduleMap[id].component}
               </SortableModule>
             ))}
