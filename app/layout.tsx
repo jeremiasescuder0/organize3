@@ -13,9 +13,9 @@ export const metadata: Metadata = {
   title: "Organize",
   description: "App de organización personal para estudiantes universitarios",
   icons: {
-    icon: "/logo.png",
-    shortcut: "/logo.png",
-    apple: "/logo.png",
+    icon: "/logo-icon.png",
+    shortcut: "/logo-icon.png",
+    apple: "/logo-icon.png",
   },
 }
 
